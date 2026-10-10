@@ -1,0 +1,30 @@
+{#
+  公共布局模板（成员 B 职责，本次由 C 临时交付）
+  路由来源：app/main.py 的 Jinja2Templates(directory=app/templates)
+  说明：基础骨架只提供标题、样式、脚本与内容块。
+        管理导航只放在 nav block 里，公开页通过覆盖 nav block 留空来隐藏。
+#}<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FirstOrder Lab{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="site-header">
+    <a class="site-brand" href="/">FirstOrder Lab</a>
+    {% block nav %}{% endblock %}
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <p>需求验证工具｜本项目用于展示拟提供的服务，不代表已有商业成交。</p>
+  </footer>
+
+  <script src="{{ url_for('static', path='/app.js') }}" defer></script>
+</body>
+</html>
