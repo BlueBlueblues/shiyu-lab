@@ -15,9 +15,10 @@ from app.auth import require_admin
 from app.config import Settings, load_settings
 from app.db import get_db, init_db
 from app.schemas import (
-    DataResponse, ErrorDetails, ErrorResponse, ProjectCreate, ProjectCreated,
+    ContractModel, DataResponse, ErrorDetails, ErrorResponse, ProjectCreate, ProjectCreated,
     ProjectDetail, ProjectSummary,
 )
+from app.services.workflow import WorkflowError, run_plan
 
 APP_DIR = Path(__file__).resolve().parent
 admin_router = APIRouter(
@@ -55,6 +56,27 @@ def get_project(project_id: str, request: Request, connection: Database):
     return {"data": project}
 
 
+@admin_router.post("/api/projects/{project_id}/plan", response_model=DataResponse[dict])
+def generate_project_plan(project_id: str, body: ContractModel, request: Request):
+    return {"data": run_plan(project_id, request.app.state.settings)}
+
+
+@admin_router.get("/api/projects/{project_id}/runs", response_model=DataResponse[list[dict]])
+def list_project_runs(project_id: str, connection: Database):
+    try:
+        return {"data": repositories.list_runs(connection, project_id)}
+    except repositories.RepositoryError as error:
+        raise WorkflowError(error.code) from None
+
+
+@admin_router.get("/api/runs/{run_id}", response_model=DataResponse[dict])
+def get_run(run_id: str, connection: Database):
+    run = repositories.get_run(connection, run_id)
+    if run is None:
+        raise WorkflowError("NOT_FOUND")
+    return {"data": run}
+
+
 def error_response(status_code, code, message, fields=None, headers=None):
     body = ErrorResponse(error=ErrorDetails(code=code, message=message, fields=fields or {}))
     return JSONResponse(status_code=status_code, content=body.model_dump(), headers=headers)
@@ -71,6 +93,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
     application.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
     application.include_router(admin_router)
+
+    @application.exception_handler(WorkflowError)
+    async def workflow_error(request: Request, exception: WorkflowError):
+        body = {"error": {"code": exception.code, "message": exception.message, "fields": {}}}
+        if exception.run_id is not None:
+            body["error"]["run_id"] = exception.run_id
+        return JSONResponse(status_code=exception.status_code, content=body)
 
     @application.exception_handler(HTTPException)
     async def http_error(request: Request, exception: HTTPException):

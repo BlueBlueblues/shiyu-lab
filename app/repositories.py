@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from urllib.parse import quote
 from uuid import uuid4
 
-from app.schemas import ProjectCreate
+from app.schemas import Plan, ProjectCreate
 
 # 单条 SELECT 保证状态、回答数量和最新报告来自同一个读取快照。
 PROJECT_QUERY = """
@@ -91,3 +91,133 @@ def get_project(connection: sqlite3.Connection, project_id: str, public_base_url
         "experiment": experiment, "latest_report_meta": report_meta,
         "running_run_id": row["running_run_id"],
     }
+
+
+class RepositoryError(Exception):
+    def __init__(self, code: str):
+        self.code = code
+        super().__init__(code)
+
+
+def load_project_input(connection: sqlite3.Connection, project_id: str) -> ProjectCreate:
+    row = connection.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+    if row is None:
+        raise RepositoryError("NOT_FOUND")
+    return ProjectCreate.model_validate({name: row[name] for name in ProjectCreate.model_fields})
+
+
+def start_plan_run(connection: sqlite3.Connection, project_id: str, run_id: str, started_at: str):
+    project = load_project_input(connection, project_id)
+    if connection.execute(
+        "SELECT id FROM agent_runs WHERE project_id = ? AND status = 'running'", (project_id,),
+    ).fetchone():
+        raise RepositoryError("RUN_IN_PROGRESS")
+    experiment = connection.execute(
+        "SELECT published_at FROM experiments WHERE project_id = ?", (project_id,),
+    ).fetchone()
+    if experiment and experiment["published_at"] is not None:
+        raise RepositoryError("EXPERIMENT_LOCKED")
+    connection.execute(
+        """INSERT INTO agent_runs (id, project_id, action, status, started_at)
+           VALUES (?, ?, 'plan', 'running', ?)""", (run_id, project_id, started_at),
+    )
+    return project
+
+
+def start_tool(connection: sqlite3.Connection, run_id: str, tool_id: str,
+               tool_name: str, started_at: str, summary: dict):
+    run = connection.execute("SELECT status FROM agent_runs WHERE id = ?", (run_id,)).fetchone()
+    if run is None or run["status"] != "running":
+        raise RepositoryError("INVALID_STATE")
+    connection.execute(
+        """INSERT INTO tool_calls
+           (id, run_id, tool_name, status, started_at, input_summary_json)
+           VALUES (?, ?, ?, 'running', ?, ?)""",
+        (tool_id, run_id, tool_name, started_at, json.dumps(summary, ensure_ascii=False)),
+    )
+
+
+def finish_tool(connection: sqlite3.Connection, tool_id: str, finished_at: str, output: dict):
+    updated = connection.execute(
+        """UPDATE tool_calls SET status = 'succeeded', finished_at = ?, output_ref_json = ?
+           WHERE id = ? AND status = 'running'""",
+        (finished_at, json.dumps(output, ensure_ascii=False), tool_id),
+    )
+    if updated.rowcount != 1:
+        raise RepositoryError("INVALID_STATE")
+
+
+def save_experiment(connection: sqlite3.Connection, project_id: str, plan: Plan,
+                    experiment_id: str, public_token: str, created_at: str) -> str:
+    experiment = connection.execute(
+        "SELECT id, published_at FROM experiments WHERE project_id = ?", (project_id,),
+    ).fetchone()
+    if experiment and experiment["published_at"] is not None:
+        raise RepositoryError("EXPERIMENT_LOCKED")
+    plan_json = plan.model_dump_json()
+    landing_json = plan.landing.model_dump_json()
+    questions_json = json.dumps([question.model_dump() for question in plan.questions], ensure_ascii=False)
+    connection.execute("UPDATE projects SET plan_json = ? WHERE id = ?", (plan_json, project_id))
+    if experiment:
+        experiment_id = experiment["id"]
+        connection.execute(
+            "UPDATE experiments SET landing_json = ?, questions_json = ? WHERE id = ?",
+            (landing_json, questions_json, experiment_id),
+        )
+    else:
+        connection.execute(
+            """INSERT INTO experiments
+               (id, project_id, public_token, landing_json, questions_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (experiment_id, project_id, public_token, landing_json, questions_json, created_at),
+        )
+    return experiment_id
+
+
+def complete_plan_run(connection: sqlite3.Connection, run_id: str, finished_at: str):
+    updated = connection.execute(
+        """UPDATE agent_runs SET status = 'succeeded', finished_at = ?
+           WHERE id = ? AND status = 'running'""", (finished_at, run_id),
+    )
+    if updated.rowcount != 1:
+        raise RepositoryError("INVALID_STATE")
+
+
+def fail_run(connection: sqlite3.Connection, run_id: str, finished_at: str,
+             code: str, message: str, model_call: dict | None = None):
+    connection.execute(
+        """UPDATE tool_calls SET status = 'failed', finished_at = ?, error_code = ?,
+           output_ref_json = ? WHERE run_id = ? AND status = 'running'""",
+        (finished_at, code, json.dumps({"model_call": model_call}) if model_call else None, run_id),
+    )
+    connection.execute(
+        """UPDATE agent_runs SET status = 'failed', finished_at = ?, error_code = ?, error_message = ?
+           WHERE id = ? AND status = 'running'""", (finished_at, code, message, run_id),
+    )
+
+
+def list_runs(connection: sqlite3.Connection, project_id: str) -> list[dict]:
+    if connection.execute("SELECT id FROM projects WHERE id = ?", (project_id,)).fetchone() is None:
+        raise RepositoryError("NOT_FOUND")
+    return [dict(row) for row in connection.execute(
+        "SELECT * FROM agent_runs WHERE project_id = ? ORDER BY started_at DESC, rowid DESC",
+        (project_id,),
+    ).fetchall()]
+
+
+def get_run(connection: sqlite3.Connection, run_id: str) -> dict | None:
+    # 同一读取事务中取 run 与工具，避免看到跨提交的混合状态。
+    connection.execute("BEGIN")
+    row = connection.execute("SELECT * FROM agent_runs WHERE id = ?", (run_id,)).fetchone()
+    if row is None:
+        return None
+    tools = []
+    for tool in connection.execute(
+        "SELECT * FROM tool_calls WHERE run_id = ? ORDER BY started_at, rowid", (run_id,),
+    ).fetchall():
+        item = dict(tool)
+        item["input_summary"] = json.loads(item.pop("input_summary_json"))
+        raw_output = item.pop("output_ref_json")
+        item["output_ref"] = json.loads(raw_output) if raw_output is not None else None
+        tools.append(item)
+    return {**dict(row), "tool_calls": tools}
