@@ -1,9 +1,12 @@
+import json
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request, Response
+from jinja2 import TemplateNotFound
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,8 +19,9 @@ from app.config import Settings, load_settings
 from app.db import get_db, init_db
 from app.schemas import (
     ContractModel, DataResponse, ErrorDetails, ErrorResponse, ProjectCreate, ProjectCreated,
-    ProjectDetail, ProjectSummary,
+    ProjectDetail, ProjectSummary, Answers, Experiment, ExperimentEdit,
 )
+from app.services import experiments
 from app.services.workflow import WorkflowError, run_plan
 
 APP_DIR = Path(__file__).resolve().parent
@@ -27,6 +31,82 @@ admin_router = APIRouter(
 )
 # 写事务须在发送 201 前提交，提交失败才能返回统一错误并回滚。
 Database = Annotated[sqlite3.Connection, Depends(get_db, scope="function")]
+public_router = APIRouter()
+
+
+@admin_router.get("/api/experiments/{experiment_id}", response_model=DataResponse[Experiment])
+def get_experiment(experiment_id: str, request: Request, connection: Database):
+    row = experiments.require_record(repositories.experiment_record(connection, experiment_id))
+    return {"data": experiments.experiment_data(row, request.app.state.settings.public_base_url)}
+
+
+@admin_router.patch("/api/experiments/{experiment_id}", response_model=DataResponse[Experiment])
+def patch_experiment(experiment_id: str, body: ExperimentEdit, request: Request, connection: Database):
+    return {"data": experiments.edit_experiment(connection, experiment_id, body, request.app.state.settings.public_base_url)}
+
+
+@admin_router.post("/api/experiments/{experiment_id}/publish", response_model=DataResponse[dict])
+def publish_experiment(experiment_id: str, body: ContractModel, request: Request, connection: Database):
+    return {"data": experiments.publish(connection, experiment_id, request.app.state.settings.public_base_url)}
+
+
+def render_experiment(request, template, context):
+    try:
+        return request.app.state.templates.TemplateResponse(request=request, name=template, context=context)
+    except TemplateNotFound:
+        return error_response(500, "INTERNAL_ERROR", "页面模板尚未由成员 B 交付，页面集成未完成。")
+
+
+@admin_router.get("/experiments/{experiment_id}/edit")
+def experiment_edit_page(experiment_id: str, request: Request, connection: Database):
+    row = experiments.require_record(repositories.experiment_record(connection, experiment_id))
+    return render_experiment(request, "experiment_edit.html", {
+        "experiment": experiments.experiment_data(row, request.app.state.settings.public_base_url),
+        "running_run_id": row["running_run_id"], "is_locked": row["published_at"] is not None,
+    })
+
+
+def preview_context(experiment_id, request, connection):
+    row = experiments.require_record(repositories.experiment_record(connection, experiment_id))
+    return {"landing": json.loads(row["landing_json"]), "questions": json.loads(row["questions_json"]),
+            "is_preview": True, "submit_url": None,
+            "service_url": f"/experiments/{experiment_id}/preview/service",
+            "survey_url": f"/experiments/{experiment_id}/preview/survey"}
+
+
+@admin_router.get("/experiments/{experiment_id}/preview/service")
+def preview_service(experiment_id: str, request: Request, connection: Database):
+    return render_experiment(request, "service.html", preview_context(experiment_id, request, connection))
+
+
+@admin_router.get("/experiments/{experiment_id}/preview/survey")
+def preview_survey(experiment_id: str, request: Request, connection: Database):
+    return render_experiment(request, "survey.html", preview_context(experiment_id, request, connection))
+
+
+def public_context(token, request, connection):
+    row = experiments.require_record(repositories.published_experiment(connection, token))
+    data = experiments.experiment_data(row, request.app.state.settings.public_base_url)
+    return {"landing": data["landing"], "questions": data["questions"], "is_preview": False,
+            "service_url": data["service_url"], "survey_url": data["survey_url"],
+            "submit_url": f"{request.app.state.settings.public_base_url.rstrip('/')}/api/public/e/{quote(token, safe='')}/responses"}
+
+
+@public_router.get("/e/{public_token}")
+def public_service(public_token: str, request: Request, connection: Database):
+    return render_experiment(request, "service.html", public_context(public_token, request, connection))
+
+
+@public_router.get("/e/{public_token}/survey")
+def public_survey(public_token: str, request: Request, connection: Database):
+    return render_experiment(request, "survey.html", public_context(public_token, request, connection))
+
+
+@public_router.post("/api/public/e/{public_token}/responses", response_model=DataResponse[dict], status_code=201)
+def submit_response(public_token: str, body: Answers, connection: Database, response: Response):
+    data = experiments.submit(connection, public_token, body)
+    response.status_code = 200 if data["duplicate"] else 201
+    return {"data": data}
 
 
 @admin_router.get("/", response_class=PlainTextResponse)
@@ -93,6 +173,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
     application.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
     application.include_router(admin_router)
+    application.include_router(public_router)
+
+    @application.exception_handler(experiments.ExperimentError)
+    async def experiment_error(request: Request, exception: experiments.ExperimentError):
+        return error_response(exception.status_code, exception.code, exception.message, exception.fields)
 
     @application.exception_handler(WorkflowError)
     async def workflow_error(request: Request, exception: WorkflowError):

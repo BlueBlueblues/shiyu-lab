@@ -221,3 +221,46 @@ def get_run(connection: sqlite3.Connection, run_id: str) -> dict | None:
         item["output_ref"] = json.loads(raw_output) if raw_output is not None else None
         tools.append(item)
     return {**dict(row), "tool_calls": tools}
+
+
+def experiment_record(connection, experiment_id):
+    return connection.execute(
+        """SELECT e.*, p.plan_json,
+        (SELECT id FROM agent_runs WHERE project_id=e.project_id AND status='running') AS running_run_id
+        FROM experiments e JOIN projects p ON p.id=e.project_id WHERE e.id=?""",
+        (experiment_id,),
+    ).fetchone()
+
+
+def published_experiment(connection, token):
+    return connection.execute(
+        "SELECT * FROM experiments WHERE public_token=? AND published_at IS NOT NULL", (token,),
+    ).fetchone()
+
+
+def update_draft(connection, row, plan):
+    connection.execute("UPDATE projects SET plan_json=? WHERE id=?",
+                       (plan.model_dump_json(), row["project_id"]))
+    connection.execute("UPDATE experiments SET landing_json=?, questions_json=? WHERE id=?",
+                       (plan.landing.model_dump_json(),
+                        json.dumps([q.model_dump() for q in plan.questions], ensure_ascii=False), row["id"]))
+
+
+def publish_experiment(connection, experiment_id, published_at):
+    connection.execute("UPDATE experiments SET published_at=? WHERE id=? AND published_at IS NULL",
+                       (published_at, experiment_id))
+
+
+def find_response(connection, experiment_id, submission_id):
+    return connection.execute(
+        "SELECT * FROM responses WHERE experiment_id=? AND client_submission_id=?",
+        (experiment_id, submission_id),
+    ).fetchone()
+
+
+def insert_response(connection, experiment_id, submission_id, answers, submitted_at):
+    return connection.execute(
+        """INSERT INTO responses (experiment_id, client_submission_id, answers_json, consent, created_at)
+        VALUES (?, ?, ?, 1, ?)""",
+        (experiment_id, submission_id, json.dumps(answers, ensure_ascii=False, sort_keys=True), submitted_at),
+    ).lastrowid

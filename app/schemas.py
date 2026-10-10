@@ -63,6 +63,11 @@ class Question(ContractModel):
         return self
 
 
+class ExperimentEdit(ContractModel):
+    landing: Landing
+    questions: list[Question] = Field(min_length=4, max_length=6)
+
+
 class Hypothesis(ContractModel):
     id: HypothesisId
     statement: Text500
