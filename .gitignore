@@ -1,0 +1,22 @@
+# Python环境和缓存
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 私密配置
+.env
+.env.*
+!.env.example
+
+# 数据库和实验数据
+data/
+evidence/
+*.db
+*.sqlite3
+
+# 本地编辑器配置
+.vscode/
+
+# 日志
+*.log
