@@ -19,11 +19,12 @@ from app.config import Settings, load_settings
 from app.db import get_db, init_db
 from app.schemas import (
     ContractModel, DataResponse, ErrorDetails, ErrorResponse, ProjectCreate, ProjectCreated,
-    ProjectDetail, ProjectSummary, Answers, Experiment, ExperimentEdit, Question, RawResponse, Statistics,
+    ProjectDetail, ProjectSummary, Answers, Experiment, ExperimentEdit, Question, RawResponse, Statistics, Report,
 )
 from app.services import experiments
 from app.services.statistics import calculate_statistics
-from app.services.workflow import WorkflowError, run_plan
+from app.services.workflow import WorkflowError, run_plan, run_review
+from app.services.reports import markdown_report
 
 APP_DIR = Path(__file__).resolve().parent
 admin_router = APIRouter(
@@ -168,6 +169,48 @@ def get_project(project_id: str, request: Request, connection: Database):
 @admin_router.post("/api/projects/{project_id}/plan", response_model=DataResponse[dict])
 def generate_project_plan(project_id: str, body: ContractModel, request: Request):
     return {"data": run_plan(project_id, request.app.state.settings)}
+
+
+def load_report(connection, project_id):
+    try:
+        return repositories.latest_report(connection, project_id)
+    except repositories.RepositoryError as error:
+        raise WorkflowError(error.code) from None
+
+
+def report_payload(report):
+    return {key: report[key] for key in Report.model_fields}
+
+
+@admin_router.post("/api/projects/{project_id}/review", response_model=DataResponse[dict])
+def review_project(project_id: str, body: ContractModel, request: Request):
+    return {"data": run_review(project_id, request.app.state.settings)}
+
+
+@admin_router.get("/api/projects/{project_id}/report", response_model=DataResponse[Report])
+def get_report(project_id: str, connection: Database):
+    report = load_report(connection, project_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="尚无成功复盘报告。")
+    return {"data": report_payload(report)}
+
+
+@admin_router.get("/api/projects/{project_id}/report.md")
+def download_report(project_id: str, connection: Database):
+    report = load_report(connection, project_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="尚无成功复盘报告。")
+    return Response(markdown_report(report), media_type="text/markdown; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="firstorder-report-{report["id"]}.md"'})
+
+
+@admin_router.get("/projects/{project_id}/report")
+def report_page(project_id: str, request: Request, connection: Database):
+    connection.execute("BEGIN")
+    detail = get_project(project_id, request, connection)["data"]
+    report = load_report(connection, project_id)
+    return render_experiment(request, "report.html", {"project": detail["project"],
+        "report": report_payload(report) if report else None, "running_run_id": detail["running_run_id"]})
 
 
 @admin_router.get("/api/projects/{project_id}/runs", response_model=DataResponse[list[dict]])

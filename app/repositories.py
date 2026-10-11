@@ -278,3 +278,40 @@ def response_snapshot(connection, experiment_id):
                      (experiment_id,),
                  ).fetchall()]
     return experiment, responses
+
+
+def start_review_run(connection, project_id, run_id, started_at):
+    project = load_project_input(connection, project_id)
+    if connection.execute("SELECT id FROM agent_runs WHERE project_id=? AND status='running'", (project_id,)).fetchone():
+        raise RepositoryError("RUN_IN_PROGRESS")
+    experiment = connection.execute("SELECT id, published_at FROM experiments WHERE project_id=?", (project_id,)).fetchone()
+    if experiment is None or experiment["published_at"] is None:
+        raise RepositoryError("INVALID_STATE")
+    connection.execute("INSERT INTO agent_runs(id,project_id,action,status,started_at) VALUES(?,?,'review','running',?)",
+                       (run_id, project_id, started_at))
+    return project, experiment["id"]
+
+
+def save_report(connection, report_id, experiment_id, run_id, statistics, review, created_at):
+    run = connection.execute("SELECT r.status, r.action, r.project_id FROM agent_runs r WHERE r.id=?", (run_id,)).fetchone()
+    experiment = connection.execute("SELECT project_id FROM experiments WHERE id=?", (experiment_id,)).fetchone()
+    if (run is None or experiment is None or run["status"] != "running" or run["action"] != "review"
+            or run["project_id"] != experiment["project_id"]):
+        raise RepositoryError("INVALID_STATE")
+    connection.execute("""INSERT INTO reports(id,experiment_id,run_id,response_count,cutoff_response_id,
+        statistics_json,review_json,created_at) VALUES(?,?,?,?,?,?,?,?)""",
+        (report_id, experiment_id, run_id, statistics.response_count, statistics.cutoff_response_id,
+         statistics.model_dump_json(), review.model_dump_json(), created_at))
+
+
+def latest_report(connection, project_id):
+    row = connection.execute(PROJECT_QUERY + " WHERE p.id=?", (project_id,)).fetchone()
+    if row is None:
+        raise RepositoryError("NOT_FOUND")
+    if row["report_id"] is None:
+        return None
+    report = connection.execute("SELECT * FROM reports WHERE id=?", (row["report_id"],)).fetchone()
+    return {"id": report["id"], "created_at": report["created_at"], "response_count": report["response_count"],
+            "cutoff_response_id": report["cutoff_response_id"], "statistics": json.loads(report["statistics_json"]),
+            "review": json.loads(report["review_json"]), "stale": report_is_stale(row), "data_kind": row["data_kind"],
+            "run_id": report["run_id"], "project_name": row["name"]}

@@ -266,6 +266,17 @@ class ReportMeta(ContractModel):
     stale: bool
 
 
+class Report(ContractModel):
+    id: str
+    created_at: str
+    response_count: Count
+    cutoff_response_id: Count
+    statistics: Statistics
+    review: Review
+    stale: bool
+    data_kind: Literal["real", "test"]
+
+
 class ProjectDetail(ContractModel):
     project: Project
     plan: Plan | None

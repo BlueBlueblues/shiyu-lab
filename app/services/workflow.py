@@ -1,3 +1,4 @@
+import json
 import time
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -15,6 +16,8 @@ from app.db import connect_db
 from app.schemas import Plan
 from app.services.llm_client import ERRORS as LLM_ERRORS, LLMError
 from app.services.planning import generate_plan
+from app.services.reviews import generate_review
+from app.services.statistics import calculate_statistics
 
 WORKFLOW_SECONDS = 60.0
 MODEL_SECONDS = 40.0
@@ -156,3 +159,73 @@ def run_plan(project_id: str, settings: Settings) -> dict:
             with write_transaction(settings, cleanup_deadline) as connection:
                 repositories.fail_run(connection, run_id, utc_now(), failure.code,
                                       failure.message, failure.model_call)
+
+
+def run_review(project_id: str, settings: Settings) -> dict:
+    cleanup_deadline = time.monotonic() + WORKFLOW_SECONDS
+    deadline = cleanup_deadline - min(5.0, WORKFLOW_SECONDS / 2)
+    run_id, tool_id = str(uuid4()), str(uuid4())
+    try:
+        with write_transaction(settings, deadline) as connection:
+            project, experiment_id = repositories.start_review_run(connection, project_id, run_id, utc_now())
+    except repositories.RepositoryError as error:
+        raise WorkflowError(error.code) from None
+    completed = False
+    failure = WorkflowError("INTERNAL_ERROR", run_id)
+    try:
+        with write_transaction(settings, deadline) as connection:
+            repositories.start_tool(connection, run_id, tool_id, "analyze_experiment", utc_now(),
+                                    {"experiment_id": experiment_id, "data_kind": project.data_kind,
+                                     "model": settings.llm_model})
+        with connect_db(settings.database_path) as connection:
+            experiment, responses = repositories.response_snapshot(connection, experiment_id)
+            detail = repositories.get_project(connection, project_id, settings.public_base_url)
+            plan = Plan.model_validate({**detail["plan"], "questions": json.loads(experiment["questions_json"])})
+            statistics = calculate_statistics(experiment_id, plan.questions, responses)
+        results = Queue(maxsize=1)
+
+        def request_review():
+            try:
+                results.put((generate_review(project, plan, statistics, settings), None))
+            except Exception as error:
+                results.put((None, error))
+
+        wait_seconds = min(MODEL_SECONDS, remaining(deadline))
+        Thread(target=request_review, daemon=True).start()
+        try:
+            result, error = results.get(timeout=wait_seconds)
+        except Empty:
+            raise WorkflowError("LLM_TIMEOUT") from None
+        if error is not None:
+            raise error
+        review, call_info = result
+        remaining(deadline)
+        report_id = str(uuid4())
+        with write_transaction(settings, deadline) as connection:
+            created_at = utc_now()
+            repositories.save_report(connection, report_id, experiment_id, run_id, statistics, review, created_at)
+            repositories.finish_tool(connection, tool_id, created_at,
+                                     {"report_id": report_id, "response_count": statistics.response_count,
+                                      "cutoff_response_id": statistics.cutoff_response_id, "model_call": asdict(call_info)})
+            repositories.complete_plan_run(connection, run_id, created_at)
+        completed = True
+        return {"report_id": report_id, "run_id": run_id, "response_count": statistics.response_count,
+                "cutoff_response_id": statistics.cutoff_response_id}
+    except LLMError as error:
+        failure = WorkflowError(error.code, run_id, asdict(error.call_info) if error.call_info else None)
+        raise failure from None
+    except repositories.RepositoryError as error:
+        failure = WorkflowError(error.code, run_id)
+        raise failure from None
+    except WorkflowError as error:
+        failure = WorkflowError(error.code, run_id, error.model_call)
+        raise failure from None
+    except Exception:
+        raise failure from None
+    except BaseException:
+        failure = WorkflowError("INTERRUPTED", run_id)
+        raise
+    finally:
+        if not completed:
+            with write_transaction(settings, cleanup_deadline) as connection:
+                repositories.fail_run(connection, run_id, utc_now(), failure.code, failure.message, failure.model_call)
