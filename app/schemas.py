@@ -186,6 +186,12 @@ class Statistics(ContractModel):
         return self
 
 
+class RawResponse(ContractModel):
+    id: ResponseId
+    answers: dict[Text500, AnswerValue]
+    created_at: str
+
+
 class OptionEvidenceRef(ContractModel):
     question_id: Text500
     option_id: Text500

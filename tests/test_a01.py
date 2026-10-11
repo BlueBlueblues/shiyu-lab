@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
+from fastapi.templating import Jinja2Templates
 from pydantic import SecretStr
 
 from app.auth import require_admin
@@ -58,13 +59,15 @@ def insert_project(connection, **overrides):
     )
 
 
-def test_health_and_authenticated_home(client):
+def test_health_and_authenticated_home(client, tmp_path, monkeypatch):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"data": {"status": "ok"}}
+    (tmp_path / "projects.html").write_text("A01 管理认证测试模板", encoding="utf-8")
+    monkeypatch.setattr(client.app.state, "templates", Jinja2Templates(directory=str(tmp_path)))
     response = client.get("/", auth=("test-admin", "unit-test-password"))
     assert response.status_code == 200
-    assert "A01 临时管理首页" in response.text
+    assert "A01 管理认证测试模板" in response.text
 
 
 @pytest.mark.parametrize("authorization", [None, "Bearer token", "Basic !!!", "Basic Zm9v", "Basic d3Jvbmc6d3Jvbmc="])

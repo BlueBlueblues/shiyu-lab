@@ -264,3 +264,17 @@ def insert_response(connection, experiment_id, submission_id, answers, submitted
         VALUES (?, ?, ?, 1, ?)""",
         (experiment_id, submission_id, json.dumps(answers, ensure_ascii=False, sort_keys=True), submitted_at),
     ).lastrowid
+
+
+def response_snapshot(connection, experiment_id):
+    # 题目和回答共享读取快照，数量及截止 ID 从这份回答计算。
+    connection.execute("BEGIN")
+    experiment = connection.execute(
+        "SELECT id, questions_json, published_at FROM experiments WHERE id=?", (experiment_id,),
+    ).fetchone()
+    responses = [{"id": row["id"], "answers": json.loads(row["answers_json"]), "created_at": row["created_at"]}
+                 for row in connection.execute(
+                     "SELECT id, answers_json, created_at FROM responses WHERE experiment_id=? ORDER BY id",
+                     (experiment_id,),
+                 ).fetchall()]
+    return experiment, responses

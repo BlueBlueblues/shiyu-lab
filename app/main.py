@@ -8,7 +8,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from jinja2 import TemplateNotFound
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException
@@ -19,9 +19,10 @@ from app.config import Settings, load_settings
 from app.db import get_db, init_db
 from app.schemas import (
     ContractModel, DataResponse, ErrorDetails, ErrorResponse, ProjectCreate, ProjectCreated,
-    ProjectDetail, ProjectSummary, Answers, Experiment, ExperimentEdit,
+    ProjectDetail, ProjectSummary, Answers, Experiment, ExperimentEdit, Question, RawResponse, Statistics,
 )
 from app.services import experiments
+from app.services.statistics import calculate_statistics
 from app.services.workflow import WorkflowError, run_plan
 
 APP_DIR = Path(__file__).resolve().parent
@@ -43,6 +44,23 @@ def get_experiment(experiment_id: str, request: Request, connection: Database):
 @admin_router.patch("/api/experiments/{experiment_id}", response_model=DataResponse[Experiment])
 def patch_experiment(experiment_id: str, body: ExperimentEdit, request: Request, connection: Database):
     return {"data": experiments.edit_experiment(connection, experiment_id, body, request.app.state.settings.public_base_url)}
+
+
+@admin_router.get("/api/experiments/{experiment_id}/responses", response_model=DataResponse[list[RawResponse]])
+def get_responses(experiment_id: str, connection: Database):
+    experiment, responses = repositories.response_snapshot(connection, experiment_id)
+    experiments.require_record(experiment)
+    return {"data": responses}
+
+
+@admin_router.get("/api/experiments/{experiment_id}/statistics", response_model=DataResponse[Statistics])
+def get_statistics(experiment_id: str, connection: Database):
+    experiment, responses = repositories.response_snapshot(connection, experiment_id)
+    experiments.require_record(experiment)
+    if experiment["published_at"] is None:
+        raise HTTPException(status_code=400, detail="实验尚未发布，不能统计反馈。")
+    questions = [Question.model_validate(question) for question in json.loads(experiment["questions_json"])]
+    return {"data": calculate_statistics(experiment_id, questions, responses)}
 
 
 @admin_router.post("/api/experiments/{experiment_id}/publish", response_model=DataResponse[dict])
@@ -109,9 +127,20 @@ def submit_response(public_token: str, body: Answers, connection: Database, resp
     return {"data": data}
 
 
-@admin_router.get("/", response_class=PlainTextResponse)
-def home():
-    return "FirstOrder Lab — A01 临时管理首页（仅用于验证 HTTP Basic，等待成员 B 模板替换）。"
+@admin_router.get("/")
+def home(request: Request, connection: Database):
+    return render_experiment(request, "projects.html", {"projects": repositories.list_projects(connection)})
+
+
+@admin_router.get("/projects/new")
+def new_project_page(request: Request):
+    return render_experiment(request, "project_new.html", {})
+
+
+@admin_router.get("/projects/{project_id}")
+def project_workspace(project_id: str, request: Request, connection: Database):
+    detail = get_project(project_id, request, connection)["data"]
+    return render_experiment(request, "workspace.html", detail)
 
 
 @admin_router.post("/api/projects", status_code=201, response_model=DataResponse[ProjectCreated])
