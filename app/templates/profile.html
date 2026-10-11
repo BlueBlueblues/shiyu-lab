@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}个人空间｜FirstOrder Lab{% endblock %}
+{% block body_class %}page-profile{% endblock %}
+{% block nav %}<nav class="site-nav"><a href="/projects">我的项目</a></nav>{% endblock %}
+{% block content %}
+{% set user = request.state.current_user %}
+<section class="card" data-testid="profile">
+  <h1>你好，{{ user.username }}</h1>
+  <dl>
+    <dt>用户名</dt><dd>{{ user.username }}</dd>
+    <dt>邮箱</dt><dd>{{ user.email or "未填写" }}</dd>
+    <dt>加入时间</dt><dd><time datetime="{{ user.created_at }}">{{ user.created_at }}</time></dd>
+  </dl>
+  <div class="actions">
+    <a class="button button-primary" href="/projects">我的项目</a>
+    <a class="button button-ghost" href="/projects/new">创建项目</a>
+  </div>
+</section>
+{% endblock %}

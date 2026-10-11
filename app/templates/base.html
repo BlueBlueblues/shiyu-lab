@@ -15,6 +15,15 @@
   <header class="site-header">
     <a class="site-brand" href="/">FirstOrder Lab</a>
     {% block nav %}{% endblock %}
+    {% if request is defined and request.state.current_user is defined and request.state.current_user and is_preview is not defined %}
+      <nav class="site-nav" aria-label="个人空间" data-testid="user-nav">
+        <a href="/profile">你好，{{ request.state.current_user.username }}</a>
+        <a href="/projects">我的项目</a>
+        <a href="/projects/new">创建项目</a>
+        <button class="button button-ghost" type="button" data-testid="auth-logout">退出登录</button>
+        <span role="status" aria-live="polite" data-testid="logout-status"></span>
+      </nav>
+    {% endif %}
   </header>
 
   <main class="site-main">

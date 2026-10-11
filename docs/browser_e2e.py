@@ -232,7 +232,7 @@ def main() -> int:
                 check("q4 分母=1（只 1 份作答）", q4["answered_count"] == 1, str(q4["answered_count"]))
 
                 # 管理页面路由（B 的模板已交付）
-                for path in ("/", "/projects/new", f"/projects/{PROJECT_ID}"):
+                for path in ("/projects", "/projects/new", f"/projects/{PROJECT_ID}"):
                     admin_page.goto(f"{BASE}{path}", wait_until="domcontentloaded")
                     check(f"管理页 {path} 渲染成功", admin_page.title() != "" and "500" not in admin_page.title(),
                           admin_page.url)

@@ -1,5 +1,5 @@
 {#
-  项目列表页 / 产品首页：GET /                       （管理端）
+  项目列表页：GET /projects                         （管理端）
 
   A 传入的 context（可选，传了就用，不传也work）：
     projects = [{id, name, status, data_kind, created_at}]
@@ -24,7 +24,7 @@
 
 {% block nav %}
   <nav class="site-nav">
-    <span class="nav-note">管理端</span>
+    <span class="nav-note">个人项目空间</span>
     <a href="/projects/new" data-testid="nav-new-project">开始验证</a>
   </nav>
 {% endblock %}

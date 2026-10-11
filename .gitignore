@@ -14,6 +14,9 @@ data/
 evidence/
 *.db
 *.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.pre-users-*.bak
 
 # 本地编辑器配置
 .vscode/

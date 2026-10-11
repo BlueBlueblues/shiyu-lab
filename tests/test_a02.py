@@ -11,6 +11,7 @@ from pydantic import SecretStr, ValidationError
 from app import repositories
 from app.config import Settings
 from app.db import connect_db, get_db
+from app.passwords import LEGACY_ADMIN_ID
 from app.main import create_app
 from app.schemas import Answers, Plan, ProjectCreate, Review, Statistics
 
@@ -107,6 +108,7 @@ def test_create_list_detail_database_and_utc(client, settings, payload):
     with connect_db(settings.database_path) as db:
         row = dict(db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone())
         assert row.pop("plan_json") is None
+        assert row.pop("user_id") == LEGACY_ADMIN_ID
         assert detail["project"] == {**row, "status": "draft"}
         for name, value in payload.items():
             assert row[name] == value
@@ -316,11 +318,11 @@ def test_commit_failure_is_not_reported_as_success(client, settings, payload):
         assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0
 
 
-def test_openapi_has_contracts_and_basic_security(client):
+def test_openapi_has_contracts_and_session_basic_security(client):
     schema = client.get("/openapi.json").json()
     for path, method in [("/api/projects", "post"), ("/api/projects", "get"), ("/api/projects/{project_id}", "get")]:
         operation = schema["paths"][path][method]
-        assert operation["security"] == [{"HTTPBasic": []}]
+        assert operation["security"] == [{"HTTPBasic": []}, {"APIKeyCookie": []}]
         assert operation["responses"]["422"]["content"]["application/json"]["schema"] == {
             "$ref": "#/components/schemas/ErrorResponse",
         }

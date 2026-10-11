@@ -16,7 +16,7 @@ from app.main import create_app
 
 NOW = "2026-10-10T00:00:00+00:00"
 PROJECT_ID = "550e8400-e29b-41d4-a716-446655440000"
-TABLES = {"projects", "experiments", "responses", "agent_runs", "tool_calls", "reports"}
+TABLES = {"users", "sessions", "projects", "experiments", "responses", "agent_runs", "tool_calls", "reports"}
 
 
 @pytest.fixture
@@ -59,19 +59,19 @@ def insert_project(connection, **overrides):
     )
 
 
-def test_health_and_authenticated_home(client, tmp_path, monkeypatch):
+def test_health_and_authenticated_projects(client, tmp_path, monkeypatch):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"data": {"status": "ok"}}
     (tmp_path / "projects.html").write_text("A01 管理认证测试模板", encoding="utf-8")
     monkeypatch.setattr(client.app.state, "templates", Jinja2Templates(directory=str(tmp_path)))
-    response = client.get("/", auth=("test-admin", "unit-test-password"))
+    response = client.get("/projects", auth=("test-admin", "unit-test-password"))
     assert response.status_code == 200
     assert "A01 管理认证测试模板" in response.text
 
 
 @pytest.mark.parametrize("authorization", [None, "Bearer token", "Basic !!!", "Basic Zm9v", "Basic d3Jvbmc6d3Jvbmc="])
-@pytest.mark.parametrize("path", ["/", "/api/a01-test"])
+@pytest.mark.parametrize("path", ["/projects", "/api/a01-test"])
 def test_unauthorized_management(client, authorization, path):
     headers = {} if authorization is None else {"Authorization": authorization}
     response = client.get(path, headers=headers)

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}登录｜FirstOrder Lab{% endblock %}
+{% block body_class %}page-auth{% endblock %}
+{% block nav %}<nav class="site-nav"><a href="/register">注册</a></nav>{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>登录，继续验证你的想法</h1>
+  <p class="muted">进入个人项目空间，查看你的实验、反馈和报告。</p>
+  <form id="auth-form" data-testid="auth-form" data-auth-action="login"
+        method="post" action="/api/auth/login">
+    <div class="field">
+      <label for="username">用户名</label>
+      <input id="username" name="username" autocomplete="username" required maxlength="80">
+    </div>
+    <div class="field">
+      <label for="password">密码</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="128">
+    </div>
+    <p class="status" role="status" aria-live="polite" data-testid="auth-status"></p>
+    <div class="field-errors" data-testid="auth-errors" hidden></div>
+    <button class="button button-primary" type="submit" data-testid="auth-submit">登录</button>
+  </form>
+  <p>还没有账号？<a href="/register">创建账号</a></p>
+</section>
+{% endblock %}

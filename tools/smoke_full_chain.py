@@ -154,7 +154,7 @@ def main() -> int:
         project_id = response.json()["data"]["project_id"]
         print("      project_id = %s" % project_id)
 
-        html = client.get("/").text
+        html = client.get("/projects").text
         check("项目列表页出现新项目（服务端渲染）",
               "校园活动报名网站服务" in html and ("project-row-%s" % project_id) in html)
 
@@ -299,7 +299,7 @@ def main() -> int:
         check("  统计区已进入取数分支（发布后）", "正在读取统计" in html)
         check("  草稿区标明已发布并锁定", "已锁定" in html)
 
-        response = client.get("/")
+        response = client.get("/projects")
         check("项目列表状态派生为 collecting",
               "收反馈中" in response.text, f"状态 {response.status_code}")
 

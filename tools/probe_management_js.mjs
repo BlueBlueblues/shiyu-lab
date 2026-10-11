@@ -7,6 +7,13 @@ const source = fs.readFileSync('app/static/app.js', 'utf8').replace(
   '}());', 'window.probe = {validateProject, beijingTime, initProjectNewPage, initWorkspacePage, request}; }());');
 let passed = 0;
 function check(name, ok) { assert.ok(ok, name); console.log('PASS ' + name); passed++; }
+vm.runInNewContext(source, {
+  document: { readyState: 'complete', body: { classList: { contains: name => name === 'page-landing' } },
+    querySelector: () => null },
+  window: {},
+  fetch() { throw new Error('公开首页不应请求受保护 API'); }
+});
+check('公开首页启动不请求受保护 API', true);
 class Node {
   constructor() { this.children = []; this.hidden = false; this.disabled = false; this.handlers = {}; this.attrs = {}; this.classList = { add() {}, remove() {} }; }
   set textContent(value) { this.text = String(value); this.children = []; }

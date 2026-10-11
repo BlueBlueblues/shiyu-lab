@@ -1,4 +1,5 @@
 import json
+import secrets
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,10 +12,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from starlette.exceptions import HTTPException
 
 from app import repositories
-from app.auth import require_admin
+from app.auth import require_admin, optional_user
+from app.auth_routes import router as auth_router, AuthLimiter
+from app.passwords import hash_password
 from app.config import Settings, load_settings
 from app.db import get_db, init_db
 from app.schemas import (
@@ -34,6 +38,21 @@ admin_router = APIRouter(
 # 写事务须在发送 201 前提交，提交失败才能返回统一错误并回滚。
 Database = Annotated[sqlite3.Connection, Depends(get_db, scope="function")]
 public_router = APIRouter()
+
+
+@admin_router.get("/openapi.json", include_in_schema=False)
+def api_schema(request: Request):
+    return request.app.openapi()
+
+
+@admin_router.get("/docs", include_in_schema=False)
+def api_docs():
+    return get_swagger_ui_html(openapi_url="/openapi.json", title="FirstOrder Lab API")
+
+
+@admin_router.get("/redoc", include_in_schema=False)
+def api_redoc():
+    return get_redoc_html(openapi_url="/openapi.json", title="FirstOrder Lab API")
 
 
 @admin_router.get("/api/experiments/{experiment_id}", response_model=DataResponse[Experiment])
@@ -71,7 +90,9 @@ def publish_experiment(experiment_id: str, body: ContractModel, request: Request
 
 def render_experiment(request, template, context):
     try:
-        return request.app.state.templates.TemplateResponse(request=request, name=template, context=context)
+        response = request.app.state.templates.TemplateResponse(request=request, name=template, context=context)
+        response.headers["Cache-Control"] = "no-store"
+        return response
     except TemplateNotFound:
         return error_response(500, "INTERNAL_ERROR", "页面模板尚未由成员 B 交付，页面集成未完成。")
 
@@ -128,9 +149,31 @@ def submit_response(public_token: str, body: Answers, connection: Database, resp
     return {"data": data}
 
 
-@admin_router.get("/")
-def home(request: Request, connection: Database):
-    return render_experiment(request, "projects.html", {"projects": repositories.list_projects(connection)})
+@public_router.get("/")
+def home(request: Request):
+    request.state.current_user = optional_user(request)
+    return render_experiment(request, "home.html", {})
+
+
+@public_router.get("/login")
+def login_page(request: Request):
+    return render_experiment(request, "login.html", {})
+
+
+@public_router.get("/register")
+def register_page(request: Request):
+    return render_experiment(request, "register.html", {})
+
+
+@admin_router.get("/profile")
+def profile_page(request: Request):
+    return render_experiment(request, "profile.html", {})
+
+
+@admin_router.get("/projects")
+def projects_page(request: Request, connection: Database):
+    return render_experiment(request, "projects.html", {
+        "projects": repositories.list_projects(connection, request.state.current_user["id"])})
 
 
 @admin_router.get("/projects/new")
@@ -145,14 +188,14 @@ def project_workspace(project_id: str, request: Request, connection: Database):
 
 
 @admin_router.post("/api/projects", status_code=201, response_model=DataResponse[ProjectCreated])
-def create_project(project: ProjectCreate, connection: Database):
-    project_id = repositories.create_project(connection, project)
+def create_project(project: ProjectCreate, request: Request, connection: Database):
+    project_id = repositories.create_project(connection, project, request.state.current_user["id"])
     return {"data": {"project_id": project_id, "status": "draft"}}
 
 
 @admin_router.get("/api/projects", response_model=DataResponse[list[ProjectSummary]])
-def list_projects(connection: Database):
-    return {"data": repositories.list_projects(connection)}
+def list_projects(request: Request, connection: Database):
+    return {"data": repositories.list_projects(connection, request.state.current_user["id"])}
 
 
 @admin_router.get(
@@ -238,14 +281,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         application.state.settings = settings if settings is not None else load_settings()
-        init_db(application.state.settings.database_path)
+        configured = application.state.settings
+        init_db(configured.database_path, configured.admin_user, configured.admin_password.get_secret_value())
+        application.state.auth_limiter = AuthLimiter()
+        application.state.dummy_password_hash = hash_password(secrets.token_urlsafe(32))
         yield
 
-    application = FastAPI(title="FirstOrder Lab", lifespan=lifespan)
+    application = FastAPI(title="FirstOrder Lab", lifespan=lifespan,
+                          docs_url=None, redoc_url=None, openapi_url=None)
     application.state.templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
     application.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
     application.include_router(admin_router)
     application.include_router(public_router)
+    application.include_router(auth_router)
 
     @application.exception_handler(experiments.ExperimentError)
     async def experiment_error(request: Request, exception: experiments.ExperimentError):
@@ -260,9 +308,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @application.exception_handler(HTTPException)
     async def http_error(request: Request, exception: HTTPException):
+        if exception.status_code == 303:
+            return Response(status_code=303, headers=exception.headers)
         code = {
             400: "INVALID_STATE", 401: "AUTH_REQUIRED", 403: "FORBIDDEN",
-            404: "NOT_FOUND", 422: "VALIDATION_ERROR",
+            404: "NOT_FOUND", 409: "CONFLICT", 422: "VALIDATION_ERROR", 429: "RATE_LIMITED",
             500: "INTERNAL_ERROR", 502: "LLM_UPSTREAM_ERROR", 504: "LLM_TIMEOUT",
         }.get(exception.status_code, "INTERNAL_ERROR")
         message = str(exception.detail) if exception.status_code < 500 else "服务暂时无法完成请求。"

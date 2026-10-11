@@ -328,7 +328,7 @@ def main() -> int:
               'data-testid="report-stale"' in html_after and "前 4 份回答" in html_after)
         check("  工作台也显示 stale 提醒并回到 collecting",
               'data-testid="report-stale"' in client.get(f"/projects/{PROJECT_ID}").text
-              and "收反馈中" in client.get("/").text)
+              and "收反馈中" in client.get("/projects").text)
 
         print("=" * 94)
         print("8) 重新复盘：新报告纳入新回答，旧报告保留")

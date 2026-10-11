@@ -161,7 +161,7 @@
 
   function messageFor(error) {
     var map = {
-      AUTH_REQUIRED: "登录状态已失效，请重新登录管理端。",
+      AUTH_REQUIRED: "登录状态已失效，请重新登录。",
       FORBIDDEN: "该操作必须从受控的管理页面发起。",
       NOT_FOUND: "资源不存在或已被删除。",
       RUN_IN_PROGRESS: "该项目已有任务执行中，请稍后再试。",
@@ -1014,8 +1014,64 @@
    * 启动
    * ------------------------------------------------------------------ */
 
+  function initAuthPage(root) {
+    var form = root.getElementById("auth-form");
+    if (!form) { return; }
+    var registering = form.getAttribute("data-auth-action") === "register";
+    var button = byTestId("auth-submit");
+    var status = byTestId("auth-status");
+    var errors = byTestId("auth-errors");
+    if (!registering && /(?:^|\?)registered=1(?:&|$)/.test(window.location.search || "")) {
+      setStatus(status, "注册成功，请登录。", "ok");
+    }
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (button.disabled) { return; }
+      var fields = form.elements;
+      if (registering && fields.password.value !== fields.password_confirmation.value) {
+        setStatus(status, "两次输入的密码不一致。", "error");
+        return;
+      }
+      var payload = { username: fields.username.value.trim(), password: fields.password.value };
+      if (registering) { payload.email = fields.email.value.trim() || null; }
+      button.disabled = true;
+      setStatus(status, registering ? "正在创建账号…" : "正在登录…", null);
+      showFieldErrors(errors, { fields: {} });
+      request("POST", "/api/auth/" + (registering ? "register" : "login"), payload, { admin: true })
+        .then(function () {
+          form.reset();
+          window.location.href = registering ? "/login?registered=1" : "/projects";
+        })
+        .catch(function (error) {
+          fields.password.value = "";
+          if (registering) { fields.password_confirmation.value = ""; }
+          showFieldErrors(errors, error);
+          setStatus(status, (error && error.message) || messageFor(error), "error");
+          button.disabled = false;
+        });
+    });
+  }
+
+  function initLogout() {
+    var button = byTestId("auth-logout");
+    if (!button) { return; }
+    button.addEventListener("click", function () {
+      if (button.disabled) { return; }
+      button.disabled = true;
+      request("POST", "/api/auth/logout", {}, { admin: true })
+        .then(function () { window.location.href = "/"; })
+        .catch(function (error) {
+          setStatus(byTestId("logout-status"), messageFor(error), "error");
+          button.disabled = false;
+        });
+    });
+  }
+
   function boot() {
     var body = document.body;
+    if (body.classList.contains("page-auth")) { initAuthPage(document); }
+    if (body.classList.contains("page-admin") || body.classList.contains("page-landing")
+        || body.classList.contains("page-profile")) { initLogout(); }
     if (body.classList.contains("page-admin")) { initEditPage(document); }
     if (body.classList.contains("page-survey")) { initSurveyPage(document); }
     // B 追加：项目管理三页

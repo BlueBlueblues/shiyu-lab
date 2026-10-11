@@ -186,11 +186,12 @@ def run_checks() -> int:
         print("3) 公开页面仍不受影响")
         check("发布后公开服务页 200", anonymous.get("/e/%s" % ("p" * 44)).status_code == 200)
         check("/health 200", client.get("/health").status_code == 200)
-        response = client.get("/")
-        check("正式首页 projects.html 200", response.status_code == 200
+        check("正式公开首页无需认证 200", anonymous.get("/").status_code == 200)
+        response = client.get("/projects")
+        check("正式项目列表 projects.html 200", response.status_code == 200
               and response.template.name == "projects.html"
               and 'data-testid="project-row-%s"' % PROJECT_ID in response.text)
-        for path in ("/", "/projects/new", "/projects/{project_id}"):
+        for path in ("/projects", "/projects/new", "/projects/{project_id}"):
             check("正式路由只注册一次 " + path,
                   sum(route.path == path and "GET" in getattr(route, "methods", set())
                       for route in admin_router.routes) == 1)

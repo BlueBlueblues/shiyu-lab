@@ -231,7 +231,8 @@ def run_checks(client: TestClient, anonymous: TestClient) -> None:
     check("数据库最终只入库 1 条回答", count == 1, f"实际 {count} 条")
 
     # ---------- 7. 权限与公开隔离 ----------
-    check("未登录管理页 401", anonymous.get("/").status_code == 401)
+    check("公开首页无需认证 200", anonymous.get("/").status_code == 200)
+    check("未登录管理页 401", anonymous.get("/projects").status_code == 401)
     check("未登录读取实验 401", anonymous.get(f"/api/experiments/{EXPERIMENT_ID}").status_code == 401)
     response = client.patch(f"/api/experiments/{EXPERIMENT_ID}", json=edited)
     check("缺 X-Requested-With 写入 403", response.status_code == 403, f"状态 {response.status_code}")

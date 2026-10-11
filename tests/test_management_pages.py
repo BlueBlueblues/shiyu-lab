@@ -2,7 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi.templating import Jinja2Templates
 
-from app.main import admin_router, create_app
+from app.main import admin_router, public_router, create_app
+from app import repositories
 from test_a05 import setup, admin
 
 
@@ -22,14 +23,14 @@ def client(setup, tmp_path):
         yield client
 
 
-@pytest.mark.parametrize("page", ["/", "/projects/new", "/projects/{id}"])
+@pytest.mark.parametrize("page", ["/projects", "/projects/new", "/projects/{id}"])
 def test_management_auth_and_context(client, setup, page):
     page = page.replace("{id}", setup[1])
     assert client.get(page).status_code == 401
     response = client.get(page, **admin(setup))
     assert response.status_code == 200
     context = {key: value for key, value in response.context.items() if key != "request"}
-    if page == "/":
+    if page == "/projects":
         assert response.template.name == "projects.html"
         assert context == {"projects": client.get("/api/projects", **admin(setup)).json()["data"]}
     elif page == "/projects/new":
@@ -46,7 +47,7 @@ def test_missing_project(client, setup):
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
-@pytest.mark.parametrize("page", ["/", "/projects/new", "/projects/{id}"])
+@pytest.mark.parametrize("page", ["/", "/projects", "/projects/new", "/projects/{id}"])
 def test_missing_template_is_explicit(setup, tmp_path, page):
     app = create_app(setup[0])
     empty = tmp_path / "empty"
@@ -61,5 +62,41 @@ def test_missing_template_is_explicit(setup, tmp_path, page):
 
 def test_routes_registered_once(client):
     paths = [route.path for route in admin_router.routes if "GET" in getattr(route, "methods", set())]
-    for path in ("/", "/projects/new", "/projects/{project_id}"):
+    for path in ("/projects", "/projects/new", "/projects/{project_id}"):
         assert paths.count(path) == 1
+    assert "/" not in paths
+    assert sum(route.path == "/" for route in public_router.routes) == 1
+
+
+def test_public_landing_does_not_read_projects(setup, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("公开首页不得读取管理项目列表")
+
+    monkeypatch.setattr(repositories, "list_projects", forbidden)
+    with TestClient(create_app(setup[0])) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "www-authenticate" not in response.headers
+        assert response.template.name == "home.html"
+        assert set(response.context) == {"request"}
+        assert '<body class="page-landing">' in response.text
+        assert 'href="/login"' in response.text
+        assert 'data-testid="landing-start">开始验证</a>' in response.text
+        assert "AI创业验证助手" in response.text
+        for step in ("输入创业想法", "AI生成验证方案", "收集真实用户反馈", "生成创业决策报告"):
+            assert step in response.text
+        assert "低成本验证创业想法" in response.text
+        assert "project-list-body" not in response.text
+        assert setup[1] not in response.text
+        assert client.get("/projects").status_code == 401
+        assert client.get("/api/projects").status_code == 401
+        for asset in ("/static/app.css", "/static/app.js"):
+            assert client.get(asset).status_code == 200
+
+
+@pytest.mark.parametrize("page", ["/projects/new", "/projects/{id}", "/projects/{id}/report"])
+def test_management_navigation_still_returns_to_projects(setup, page):
+    with TestClient(create_app(setup[0])) as client:
+        response = client.get(page.replace("{id}", setup[1]), **admin(setup))
+        assert response.status_code == 200
+        assert 'href="/projects" data-testid="nav-projects"' in response.text

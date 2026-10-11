@@ -862,7 +862,18 @@ textarea[readonly] {
  * 但产品门面与管理端（表格密集）用更宽的版心，避免"后台窄条"观感。
  * ------------------------------------------------------------------ */
 
+.page-landing .site-main,
 .page-projects .site-main { max-width: 1120px; }
+
+.landing-subtitle {
+  margin: 0 0 20px;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.page-auth .site-main { max-width: 560px; }
+.page-profile dd { margin-left: 0; overflow-wrap: anywhere; }
 
 .page-workspace .site-main,
 .page-report .site-main { max-width: 1040px; }

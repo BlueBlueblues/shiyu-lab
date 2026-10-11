@@ -1,9 +1,12 @@
 import sqlite3
+import secrets
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Request
+
+from app.passwords import LEGACY_ADMIN_ID, hash_password
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
@@ -103,10 +106,57 @@ def get_db(request: Request):
         yield connection
 
 
-def init_db(database_path: Path) -> None:
+def migrate_users(connection, admin_user=None, admin_password=None):
+    connection.execute("BEGIN IMMEDIATE")
+    connection.execute("""CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY NOT NULL,
+        username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        email TEXT,
+        password_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    connection.execute("""CREATE TABLE IF NOT EXISTS sessions (
+        token_hash TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL CHECK (expires_at > created_at)
+    )""")
+    admin = connection.execute("SELECT username FROM users WHERE id=?", (LEGACY_ADMIN_ID,)).fetchone()
+    if admin is None:
+        connection.execute("INSERT INTO users VALUES (?,?,?,?,?)", (
+            LEGACY_ADMIN_ID, admin_user or "__legacy_admin__", None,
+            hash_password(admin_password if admin_password is not None else secrets.token_urlsafe(32)),
+            datetime.now(timezone.utc).isoformat()))
+    elif admin["username"] == "__legacy_admin__" and admin_user is not None:
+        connection.execute("UPDATE users SET username=?, password_hash=? WHERE id=?",
+                           (admin_user, hash_password(admin_password), LEGACY_ADMIN_ID))
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(projects)")}
+    if "user_id" not in columns:
+        connection.execute("ALTER TABLE projects ADD COLUMN user_id TEXT REFERENCES users(id)")
+    connection.execute("UPDATE projects SET user_id=? WHERE user_id IS NULL", (LEGACY_ADMIN_ID,))
+    connection.execute("CREATE INDEX IF NOT EXISTS projects_by_user ON projects(user_id)")
+    # 兼容旧版种子脚本的 INSERT；HTTP 创建始终显式指定当前用户。
+    connection.execute(f"""CREATE TRIGGER IF NOT EXISTS legacy_project_owner
+        AFTER INSERT ON projects WHEN NEW.user_id IS NULL BEGIN
+        UPDATE projects SET user_id='{LEGACY_ADMIN_ID}' WHERE id=NEW.id;
+        END""")
+    connection.execute("""CREATE TRIGGER IF NOT EXISTS project_owner_required
+        BEFORE UPDATE OF user_id ON projects WHEN NEW.user_id IS NULL BEGIN
+        SELECT RAISE(ABORT, 'project owner required'); END""")
+    connection.execute("PRAGMA user_version = 1")
+
+
+def init_db(database_path: Path, admin_user=None, admin_password=None) -> None:
     database_path.parent.mkdir(parents=True, exist_ok=True)
     with connect_db(database_path) as connection:
+        existing = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "projects" in existing and "users" not in existing:
+            backup_path = database_path.with_name(database_path.name + ".pre-users-"
+                + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + ".bak")
+            with sqlite3.connect(backup_path) as backup:
+                connection.backup(backup)
         connection.executescript(SCHEMA)
+        migrate_users(connection, admin_user, admin_password)
         finished_at = datetime.now(timezone.utc).isoformat()
         connection.execute(
             """UPDATE tool_calls SET status = 'failed', finished_at = ?,

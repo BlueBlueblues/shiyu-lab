@@ -5,6 +5,7 @@ from urllib.parse import quote
 from uuid import uuid4
 
 from app.schemas import Plan, ProjectCreate
+from app.passwords import LEGACY_ADMIN_ID
 
 # 单条 SELECT 保证状态、回答数量和最新报告来自同一个读取快照。
 PROJECT_QUERY = """
@@ -24,15 +25,15 @@ LEFT JOIN reports r ON r.id = (
 """
 
 
-def create_project(connection: sqlite3.Connection, project: ProjectCreate) -> str:
+def create_project(connection: sqlite3.Connection, project: ProjectCreate, user_id=LEGACY_ADMIN_ID) -> str:
     project_id = str(uuid4())
     connection.execute(
         """INSERT INTO projects
            (id, name, idea, target_users, skills, budget_cny, validation_goal,
-            data_kind, plan_json, created_at)
+            data_kind, plan_json, created_at, user_id)
            VALUES (:id, :name, :idea, :target_users, :skills, :budget_cny,
-                   :validation_goal, :data_kind, NULL, :created_at)""",
-        {**project.model_dump(), "id": project_id, "created_at": datetime.now(timezone.utc).isoformat()},
+                   :validation_goal, :data_kind, NULL, :created_at, :user_id)""",
+        {**project.model_dump(), "id": project_id, "created_at": datetime.now(timezone.utc).isoformat(), "user_id": user_id},
     )
     return project_id
 
@@ -54,8 +55,10 @@ def project_status(row: sqlite3.Row) -> str:
     return "reviewed"
 
 
-def list_projects(connection: sqlite3.Connection) -> list[dict]:
-    rows = connection.execute(PROJECT_QUERY + " ORDER BY p.created_at DESC, p.id DESC").fetchall()
+def list_projects(connection: sqlite3.Connection, user_id=None) -> list[dict]:
+    where = " WHERE p.user_id=?" if user_id is not None else ""
+    rows = connection.execute(PROJECT_QUERY + where + " ORDER BY p.created_at DESC, p.id DESC",
+                              (user_id,) if user_id is not None else ()).fetchall()
     return [
         {"id": row["id"], "name": row["name"], "status": project_status(row),
          "data_kind": row["data_kind"], "created_at": row["created_at"]}

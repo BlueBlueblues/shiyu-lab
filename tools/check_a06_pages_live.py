@@ -131,13 +131,14 @@ def main() -> int:
 
         print("=" * 92)
         print("1) 三个管理页面路由（A 已接线）与 context")
-        check("未登录 GET / 401", anonymous.get("/").status_code == 401)
+        check("公开 GET / 200", anonymous.get("/").status_code == 200)
+        check("未登录 GET /projects 401", anonymous.get("/projects").status_code == 401)
         check("未登录 GET /projects/new 401", anonymous.get("/projects/new").status_code == 401)
         check("未登录 GET /projects/{id} 401",
               anonymous.get(f"/projects/{PROJECT_ID}").status_code == 401)
 
-        response = client.get("/")
-        check("GET / 200", response.status_code == 200, f"状态 {response.status_code}")
+        response = client.get("/projects")
+        check("GET /projects 200", response.status_code == 200, f"状态 {response.status_code}")
         if response.status_code == 200:
             html = response.text
             check("  渲染 B 的 projects.html", 'data-testid="project-list-body"' in html)
