@@ -21,7 +21,8 @@
         草稿返回 400 INVALID_STATE；实验不存在 404
         GET /api/experiments/{id}/responses   → [{id, answers, created_at}]
     - 生成方案 / 发布 成功后整页重载，不重复实现一套前端渲染，避免两套渲染结果不一致。
-    - A07 后端已实现，报告模板尚待 B 交付：复盘与报告下载保持禁用，不展示任何假数据。
+    - A07 已接通（B 本轮交付）：复盘区显示报告快照与 stale 提醒，复盘按钮按状态启用；
+      复盘 POST 与报告页、Markdown 下载入口见下方 review-card 与 app.js 的 initWorkspacePage。
 #}
 {% extends "base.html" %}
 {% block title %}{{ project.name }}｜项目工作台{% endblock %}
@@ -51,6 +52,30 @@
     questions: {{ (experiment.questions if experiment else []) | tojson }}
   };
 </script>
+
+{# 验证进度条：把"我走到哪一步了"讲清楚，评委与用户都能一眼看懂这个故事。
+   状态只用服务端已有的信息推导（方案 / 是否发布 / 是否有报告），不显示任何统计数字。 #}
+{% set plan_done = true if (plan and plan.hypotheses) else false %}
+{% set published = true if (experiment and experiment.published_at) else false %}
+{% set report_done = true if latest_report_meta else false %}
+{# 报告之后又收到新回答（T09）：报告已完成但已过期，进度条必须体现出来，
+   否则"第 4 步全绿 + 状态=收反馈中"会让评委以为页面自相矛盾。 #}
+{% set report_stale = true if (latest_report_meta and latest_report_meta.stale) else false %}
+<section class="ws-steps" data-testid="ws-steps" aria-label="验证进度">
+  <span class="ws-step ws-step-done">
+    <span class="ws-step-num">1</span>你的想法
+  </span>
+  <span class="ws-step {{ 'ws-step-done' if plan_done else 'ws-step-current' }}">
+    <span class="ws-step-num">2</span>AI 验证计划
+  </span>
+  <span class="ws-step {{ 'ws-step-current' if report_stale else ('ws-step-done' if report_done else ('ws-step-current' if published else 'ws-step-pending')) }}">
+    <span class="ws-step-num">3</span>收集真实反馈{% if report_stale %}（有新增）{% endif %}
+  </span>
+  <span class="ws-step {{ 'ws-step-stale' if report_stale else ('ws-step-done' if report_done else 'ws-step-pending') }}"
+        {% if report_stale %}data-testid="ws-step-report-stale"{% endif %}>
+    <span class="ws-step-num">4</span>验证报告{% if report_stale %}（待更新）{% endif %}
+  </span>
+</section>
 
 <section class="card">
   <h1 data-testid="project-name">{{ project.name }}</h1>

@@ -28,9 +28,12 @@
 
 {% block content %}
 <section class="card">
-  <h1>新建项目</h1>
+  <p class="step-hint" data-testid="new-step-hint">第 1 步 / 共 4 步 · 说清你的想法</p>
+  <h1>开始一次 AI 验证</h1>
   <p class="muted">
-    先把想法写清楚，再让 Agent 生成验证方案。带 <span class="required-mark">*</span> 的为必填。
+    用一段话把想法讲清楚就够了：<strong>为谁</strong>、<strong>解决什么问题</strong>、<strong>你想验证什么</strong>。
+    填完创建项目后进入工作台，再点击「生成验证方案」，Agent 会给出可证伪的假设、问题清单和问卷草稿。
+    带 <span class="required-mark">*</span> 的为必填。
   </p>
 
   <form id="project-form" data-testid="project-form" novalidate>
@@ -85,9 +88,14 @@
     </div>
 
     <div class="actions">
-      <button type="submit" class="button button-primary" data-testid="project-create">创建项目</button>
+      <button type="submit" class="button button-primary button-lg" data-testid="project-create">
+        创建项目并继续
+      </button>
       <span class="form-status" data-testid="project-status" role="status" aria-live="polite"></span>
     </div>
+    <p class="muted">
+      创建后会进入工作台；在那里点「生成验证方案」调用模型。
+    </p>
 
     {# app.js 把 422 的 error.fields 写进这个容器，字段级错误不会丢 #}
     <div class="field-errors" data-testid="field-errors" hidden></div>

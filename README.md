@@ -1,6 +1,6 @@
 # FirstOrder Lab
 
-基线 `feat/a-backend / 532b225`。本地配置在 `.env`，字段说明见 `.env.example`；密钥不提交。
+分支 `feat/a-backend`，集成关系 `532b225 → e8d543b → 8eb4136 → 最终冻结提交`。本地配置在 `.env`，字段说明见 `.env.example`；密钥不提交。冻结版本与验收边界见 [冻结说明](docs/release-freeze-20261011.md)。
 使用 Python conda 环境 `firstorder-lab`：
 
 ```powershell
@@ -11,7 +11,7 @@ node --check app/static/app.js
 ```
 
 管理页 `/`、`/projects/new`、`/projects/{id}` 使用正式路由和 Basic 认证。问卷公开页与预览页保留现有修复；工作台已接 A06 统计及按需读取原始回答。
-A07 后端已实现（复盘、报告 JSON、Markdown）；`report.html` 尚待 B 交付，工作台的三个复盘/报告入口保持禁用。
+A07 已接通复盘、报告页、报告 JSON 和 Markdown；工作台按发布状态及运行锁启用复盘入口。B 最终首页、进度条与 UI 已合并，既有问卷修复、data-testid 和 C 测试保留。
 
 模型使用非流式 Chat Completions 协议，`LLM_BASE_URL` 填基础地址，适配器追加 `/chat/completions`。
 HTTP 各阶段 60 秒，模型结果总等待 60 秒，工作流 80 秒含 5 秒失败清理，真实冒烟客户端各阶段 85 秒，前端管理请求总期限 90 秒。

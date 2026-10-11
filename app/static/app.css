@@ -152,7 +152,7 @@ select {
   color: var(--color-text);
   background: #fff;
   border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 textarea { min-height: 88px; resize: vertical; }
@@ -195,7 +195,7 @@ a:focus-visible {
   gap: 10px;
   padding: 10px 8px;
   min-height: 44px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .option:hover { background: #f8fafc; }
 .option input { width: 20px; height: 20px; min-height: 0; margin: 2px 0 0; flex: 0 0 auto; }
@@ -249,7 +249,7 @@ code.muted { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
   text-align: center;
   text-decoration: none;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -385,4 +385,489 @@ code.muted { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
   .run-tools th:nth-child(3), .run-tools td:nth-child(3),
   .run-tools th:nth-child(4), .run-tools td:nth-child(4) { display: none; }
   .service-meta dd .button { margin-top: 6px; }
+}
+
+/* ------------------------------------------------------------------ *
+ * 产品门面：首页 Hero 与四步故事条（B 追加，纯新增，不改既有规则）
+ * 目的：第一眼是"AI 创业验证产品"，而不是后台管理系统的列表页。
+ * ------------------------------------------------------------------ */
+
+.hero {
+  background: linear-gradient(180deg, #ffffff 0%, #f2f6ff 100%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 36px 32px 28px;
+  margin-bottom: 20px;
+}
+
+.hero-brand {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.hero-title {
+  margin: 0 0 16px;
+  font-size: 34px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+.hero-value {
+  margin: 0 0 24px;
+  font-size: 17px;
+  line-height: 1.9;
+  color: var(--color-text);
+  max-width: 46em;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.hero-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.button-lg {
+  padding: 12px 22px;
+  font-size: 16px;
+  border-radius: var(--radius);
+}
+
+.story { margin-bottom: 20px; }
+
+.story-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.story-step {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+}
+
+.story-step h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--color-text);
+}
+
+.story-step p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-muted);
+}
+
+.story-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 430px) {
+  .hero { padding: 24px 18px 20px; }
+  .hero-title { font-size: 26px; }
+  .hero-value { font-size: 15px; line-height: 1.8; }
+  .hero-actions { flex-direction: column; align-items: stretch; }
+  .hero-actions .button { text-align: center; }
+}
+
+/* 步骤提示与工作台验证进度条 */
+.step-hint {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+}
+
+.ws-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.ws-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-card);
+  font-size: 13px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.ws-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ws-step-done {
+  border-color: #a7d7bd;
+  background: #f2fbf6;
+  color: #067647;
+  font-weight: 600;
+}
+
+.ws-step-done .ws-step-num { background: #067647; color: #fff; }
+
+.ws-step-current {
+  border-color: var(--color-primary);
+  background: var(--color-preview-bg);
+  color: var(--color-primary-dark);
+  font-weight: 600;
+}
+
+.ws-step-current .ws-step-num { background: var(--color-primary); color: #fff; }
+
+/* 报告已完成但之后又收到新回答（stale）：用琥珀色提示"待更新"，
+   避免"第 4 步全绿 + 状态=收反馈中"看起来自相矛盾。 */
+.ws-step-stale {
+  border-color: var(--color-warn-border);
+  background: var(--color-warn-bg);
+  color: #8a5a00;
+  font-weight: 600;
+}
+
+.ws-step-stale .ws-step-num { background: #8a5a00; color: #fff; }
+
+/* ==========================================================================
+   B 追加 v2：界面精修层（方向 A 保守精修）
+   设计令牌 + 组件六态 + 表格/提示条节奏 + 动效与无障碍 + 窄屏补强。
+   原则：**只新增与覆盖式微调**，不删除也不改写上面 C 的规则，把回归风险压到最低。
+   上面遗留的硬编码值（6/8/10/12/14/16/20px、#f8fafc、#e2e8f0 等）本轮不动，
+   新代码一律走下面的令牌，后续要统一时按令牌逐条替换即可。
+   ========================================================================== */
+
+:root {
+  /* 间距阶：全站新代码只用这六档 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* 字阶 */
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-base: 14px;
+  --font-md: 15px;
+  --font-lg: 16px;
+  --font-xl: 17px;
+  --font-2xl: 18px;
+  --font-3xl: 22px;
+
+  /* 圆角：控件小圆角 / 卡片大圆角 / 标签胶囊 */
+  --radius-sm: 6px;
+  --radius-pill: 999px;
+
+  /* 语义色对（前景 + 浅底），与既有 --color-* 同名同义，只是补齐成对的值 */
+  --tone-ok-fg: #067647;
+  --tone-ok-bg: #e7f6ee;
+  --tone-warn-fg: #8a5a00;
+  --tone-warn-bg: #fff7e6;
+  --tone-info-fg: #1e40af;
+  --tone-info-bg: #eef4ff;
+  --tone-neutral-fg: #475569;
+  --tone-neutral-bg: #eef1f6;
+  --tone-danger-fg: #b42318;
+  --tone-danger-bg: #fef3f2;
+
+  /* 交互反馈时长 */
+  --t-fast: 120ms;
+  --t-base: 180ms;
+
+  /* 覆盖：次要文字原为 #64748b，在页面底色 #f5f7fa 上只有 4.43:1，
+     未达 WCAG AA 的 4.5:1。这里在**不改变观感量级**的前提下压深一档，
+     在页面底上约 5.2:1、在白卡片上约 5.5:1，同时与正文 #1f2933 仍有明显层级差。
+     （两个 :root 同规格，后者生效；上面的原值保留以便回溯。） */
+  --color-muted: #586879;
+}
+
+/* ---------- 1. 标题与段落节奏 ---------- */
+
+/* 报告页大量使用 h3（结论摘要 / 假设评估 / 局限 / 下一步行动），
+   原先没有 .card h3 规则，走浏览器默认值，与 h1/h2 不成体系。 */
+.card h3 {
+  font-size: var(--font-h3, 16px);
+  font-size: 16px;
+  margin: var(--space-5) 0 var(--space-2);
+  line-height: 1.5;
+}
+.card h3:first-child { margin-top: 0; }
+
+.card p { margin: 0 0 var(--space-3); }
+.card p:last-child { margin-bottom: 0; }
+.card > .muted + .muted { margin-top: calc(var(--space-2) * -1); }
+
+/* 小标题与紧跟其后的说明之间收紧一点，读起来是一组 */
+.card h2 + .muted,
+.card h3 + .muted { margin-top: calc(var(--space-2) * -1); }
+
+/* ---------- 2. 按钮：补齐 hover / active / 幽灵态 / 尺寸一致性 ---------- */
+
+.button {
+  border-radius: var(--radius-sm);
+  transition: background-color var(--t-fast) ease,
+              border-color var(--t-fast) ease,
+              color var(--t-fast) ease,
+              box-shadow var(--t-fast) ease;
+}
+
+.button-primary:hover:not(:disabled) {
+  /* 覆盖：加一点上浮感，但不做位移动画（避免低端设备抖动） */
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.16);
+}
+
+.button-ghost:hover:not(:disabled) {
+  background: var(--tone-info-bg);
+  border-color: var(--color-primary-dark);
+  color: var(--color-primary-dark);
+}
+
+.button:active:not(:disabled) {
+  /* 按下即时反馈，比 hover 更明显 */
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.18);
+}
+
+.button:disabled,
+.button[disabled] {
+  /* 覆盖：禁用态保持清晰可辨，但不与正文抢注意力 */
+  background: var(--tone-neutral-bg);
+  color: #94a3b8;
+  border-color: #dbe3ec;
+  box-shadow: none;
+}
+
+/* 链接也有明确的可点反馈 */
+.card a { transition: color var(--t-fast) ease; }
+.card a:hover { color: var(--color-primary-dark); text-decoration-thickness: 2px; }
+
+/* ---------- 3. 表单：焦点、占位、只读的视觉统一 ---------- */
+
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+  border-radius: var(--radius-sm);
+  transition: border-color var(--t-fast) ease, box-shadow var(--t-fast) ease;
+}
+
+input[type="text"]:hover:not([readonly]),
+input[type="number"]:hover:not([readonly]),
+textarea:hover:not([readonly]),
+select:hover {
+  border-color: #b9c6d6;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.14);
+  outline: none;
+}
+
+/* 键盘用户的焦点环要更醒目（鼠标点击时不出现） */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(29, 78, 216, 0.55);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::placeholder { color: #94a3b8; opacity: 1; }
+
+input[readonly],
+textarea[readonly] {
+  border-style: dashed;
+  cursor: default;
+}
+
+/* 必填标记与字段说明的间距 */
+.field .required-mark { font-weight: 700; }
+.field > .muted { margin: 6px 0 0; }
+
+/* 字段级错误：左侧色条让"哪里错了"一眼可见 */
+.field-errors {
+  border-left-width: 4px;
+  line-height: 1.7;
+}
+
+/* ---------- 4. 状态标签：九种语义色统一成对，间距放宽 ---------- */
+
+.tag {
+  /* 覆盖：原先 1px 8px 在中文里偏挤，胶囊高度也不够 */
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.tag-draft { background: var(--tone-neutral-bg); color: var(--tone-neutral-fg); }
+.tag-planned { background: var(--tone-info-bg); color: var(--tone-info-fg); }
+.tag-collecting { background: var(--tone-warn-bg); color: var(--tone-warn-fg); }
+.tag-reviewed { background: var(--tone-ok-bg); color: var(--tone-ok-fg); }
+.tag-real { background: var(--tone-ok-bg); color: var(--tone-ok-fg); }
+.tag-test { background: var(--tone-warn-bg); color: var(--tone-warn-fg); }   /* 测试样例必须一眼可辨 */
+.tag-running { background: var(--tone-warn-bg); color: var(--tone-warn-fg); }
+.tag-succeeded { background: var(--tone-ok-bg); color: var(--tone-ok-fg); }
+.tag-failed { background: var(--tone-danger-bg); color: var(--tone-danger-fg); }
+
+/* 同一行里多个标签之间留出呼吸 */
+.tag + .tag { margin-left: var(--space-1); }
+
+/* ---------- 5. 提示条：左侧语义色条，扫读时不必逐字读 ---------- */
+
+.notice {
+  border-radius: var(--radius-sm);
+  border-left-width: 4px;
+  line-height: 1.7;
+}
+
+.notice-preview { border-left-color: var(--color-primary); }
+.notice-warn,
+.notice-locked { border-left-color: var(--color-warn-border); }
+.notice-error,
+.field-errors { border-left-color: var(--color-danger); }
+.notice-consent { border-left-color: var(--color-border); }
+
+.notice strong { color: inherit; }
+
+/* ---------- 6. 表格：斑马纹 + 行悬停 + 数字列右对齐 ---------- */
+
+.data-table th,
+.data-table td {
+  padding: var(--space-3) var(--space-2);
+}
+
+.data-table tbody tr:nth-child(even) { background: #fafbfd; }
+.data-table tbody tr:hover { background: var(--tone-info-bg); }
+.data-table tbody tr { transition: background-color var(--t-fast) ease; }
+
+/* 计数与百分比右对齐，数字才能竖着比大小。
+   只作用于明确带语义标记的统计表，避免影响题干表。 */
+[data-testid^="stat-option-"] td:not(:first-child),
+.page-report .data-table td:last-child,
+.page-report .data-table th:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 7. 统计块与运行日志：轻微底色，和正文区分开 ---------- */
+
+.run {
+  background: #fbfcfe;
+  transition: background-color var(--t-fast) ease;
+}
+.run:hover { background: #f7faff; }
+
+.run-head { line-height: 1.9; }
+
+/* ---------- 8. 无障碍与动效偏好 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 焦点最少可见：任何可聚焦元素都有兜底，不允许出现无焦点的键盘陷阱 */
+:focus-visible { outline-offset: 2px; }
+
+/* ---------- 9. 窄屏补强（390px 优先） ---------- */
+
+@media (max-width: 430px) {
+  /* 主操作通栏，次要操作保持行内宽度，避免满屏都是大按钮 */
+  .actions .button-primary,
+  .actions .button-lg,
+  .hero-actions .button { width: 100%; }
+
+  .actions .button-ghost { width: auto; }
+
+  /* 表格：给内容留出最小可读宽度，而不是硬挤 */
+  .data-table th,
+  .data-table td { padding: var(--space-2) 6px; font-size: var(--font-md); }
+
+  /* 标签可能变多，允许换行而不是撑破卡片 */
+  .run-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+  /* 长 UUID / 链接 / 时间戳必须能断行 */
+  .mono { overflow-wrap: anywhere; }
+
+  /* 提示条与卡片内边距在窄屏收紧一档，但不低于 12px */
+  .notice { padding: 10px 12px; }
+
+  /* 表格里的按钮不要通栏，否则一行只有一个按钮还占满宽度 */
+  .data-table .button { width: auto; }
+}
+
+@media (max-width: 430px) {
+  .ws-step { padding: 6px 10px; font-size: 12px; }
+}
+
+/* ------------------------------------------------------------------ *
+ * 版心宽度（B 追加，纯 CSS，不改 C 的 base.html）
+ * base.html 的 .site-main 统一是 720px：公开填写页保持 720 便于阅读，
+ * 但产品门面与管理端（表格密集）用更宽的版心，避免"后台窄条"观感。
+ * ------------------------------------------------------------------ */
+
+.page-projects .site-main { max-width: 1120px; }
+
+.page-workspace .site-main,
+.page-report .site-main { max-width: 1040px; }
+
+/* 版心放宽后，四步故事条排成一行（窄屏仍按 auto-fit 自动折行） */
+@media (min-width: 900px) {
+  .story-list { grid-template-columns: repeat(4, 1fr); }
 }
