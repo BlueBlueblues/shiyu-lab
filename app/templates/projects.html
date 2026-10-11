@@ -1,0 +1,86 @@
+{#
+  项目列表页：GET /                       （管理端）
+
+  A 传入的 context（可选，传了就用，不传也work）：
+    projects = [{id, name, status, data_kind, created_at}]
+               与 GET /api/projects 的 data 完全一致
+
+  设计说明：
+    - 传了 projects 就服务端渲染首屏；没传（或为空）由 app.js 调 GET /api/projects 填充，
+      两者不会重复渲染（JS 只在表格为空时取数）。因此 A 只加路由、不传 context 也能跑。
+    - 状态与数据类型的中文映射写在本模板里，不依赖 A 提供 status_cn 过滤器。
+    - created_at 以 UTC ISO 放在 <time datetime> 上，由 app.js 转成北京时间显示（不依赖 bjtime 过滤器）。
+    - data_kind=test 必须显式标注，页面不得把测试样例当真实反馈。
+#}
+{% extends "base.html" %}
+{% block title %}项目列表｜FirstOrder Lab{% endblock %}
+{% block body_class %}page-admin page-projects{% endblock %}
+
+{% set STATUS_CN = {'draft': '草稿', 'planned': '已出方案', 'collecting': '收反馈中', 'reviewed': '已复盘'} %}
+{% set KIND_CN = {'real': '真实实验', 'test': '测试样例'} %}
+
+{% block nav %}
+  <nav class="site-nav">
+    <span class="nav-note">管理端</span>
+    <a href="/projects/new" data-testid="nav-new-project">新建项目</a>
+  </nav>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>项目列表</h1>
+  <p class="muted">
+    把一句想验证的想法，变成可发布的问卷、真实回答与复盘报告。全流程数据只存在本机 SQLite。
+  </p>
+
+  <div class="actions">
+    <a class="button button-primary" href="/projects/new" data-testid="project-create-link">新建项目</a>
+    <span class="form-status" data-testid="projects-status" role="status" aria-live="polite"></span>
+  </div>
+</section>
+
+<section class="card">
+  <p class="notice" data-testid="project-empty" hidden>
+    还没有项目。点上面「新建项目」开始验证第一个想法。
+  </p>
+
+  <table class="data-table" data-testid="project-table">
+    <caption class="sr-only">项目列表</caption>
+    <thead>
+      <tr>
+        <th scope="col">项目</th>
+        <th scope="col">状态</th>
+        <th scope="col">数据类型</th>
+        <th scope="col">创建时间</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody data-testid="project-list-body">
+      {% for project in projects | default([]) %}
+      <tr data-testid="project-row-{{ project.id }}">
+        <td>{{ project.name }}</td>
+        <td>
+          <span class="tag tag-{{ project.status }}" data-testid="status-{{ project.id }}">
+            {{ STATUS_CN.get(project.status, project.status) }}
+          </span>
+        </td>
+        <td>
+          <span class="tag tag-{{ project.data_kind }}" data-testid="data-kind-{{ project.id }}">
+            {{ KIND_CN.get(project.data_kind, project.data_kind) }}
+          </span>
+        </td>
+        <td>
+          <time class="muted" datetime="{{ project.created_at }}"
+                data-utc="{{ project.created_at }}">{{ project.created_at }}</time>
+        </td>
+        <td><a href="/projects/{{ project.id }}" data-testid="project-open-{{ project.id }}">打开工作台</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if projects is defined and projects %}
+  <p class="muted" data-testid="projects-source">共 {{ projects | length }} 个项目。</p>
+  {% endif %}
+</section>
+{% endblock %}

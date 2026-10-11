@@ -51,6 +51,10 @@
   <form id="survey-form" data-testid="survey-form"
         data-submit-url="{{ submit_url or '' }}"
         data-is-preview="{{ 'true' if is_preview else 'false' }}"
+        {# B 追加（缺陷修复）：app.js 的 collectAnswers 依赖 data-questions，
+           原模板没有这个属性，导致真实浏览器里 answers 恒为 {}（空问卷入库/被 422 拒绝）。
+           tojson 会把单引号转义成 \u0027，因此用单引号包裹是安全的。 #}
+        data-questions='{{ questions | tojson }}'
         novalidate>
 
     {% for question in questions %}
@@ -107,6 +111,10 @@
               data-testid="survey-submit" {% if is_preview %}disabled{% endif %}>提交问卷</button>
       <span class="form-status" data-testid="survey-status" role="status" aria-live="polite"></span>
     </div>
+
+    {# B 追加（缺陷修复）：app.js 会把 422 的 error.fields 写进这个容器，
+       原模板没有它，showFieldErrors 拿到 null 直接返回 —— 字段级错误被静默丢弃。 #}
+    <div class="field-errors" data-testid="field-errors" hidden></div>
   </form>
 
   <div class="submission-success" data-testid="submission-success" hidden>

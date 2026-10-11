@@ -1,0 +1,121 @@
+{#
+  项目工作台：GET /projects/{project_id}    （管理端）
+
+  A 传入的 context：无（可选传 detail，本页不使用）。
+  设计说明：project_id 从地址栏取，项目详情、运行日志等全部由 app.js 调真实 API 获取：
+      GET  /api/projects/{id}          → {project, plan, experiment, latest_report_meta, running_run_id}
+      GET  /api/projects/{id}/runs     → agent_runs 列表（不含工具）
+      GET  /api/runs/{run_id}          → run + tool_calls[{tool_name,status,started_at,finished_at,error_code,output_ref}]
+  这样 A 只需要加路由、不需要准备 context，也避免"服务端渲染 + 前端渲染"两条路径不一致。
+
+  未接通的功能（A06/A07）一律 disabled 并写明原因，不显示任何假统计或假报告。
+#}
+{% extends "base.html" %}
+{% block title %}项目工作台｜FirstOrder Lab{% endblock %}
+{% block body_class %}page-admin page-workspace{% endblock %}
+
+{% block nav %}
+  <nav class="site-nav">
+    <span class="nav-note">管理端</span>
+    <a href="/" data-testid="nav-projects">项目列表</a>
+    <a href="/projects/new" data-testid="nav-new-project">新建项目</a>
+  </nav>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1 data-testid="project-name">项目工作台</h1>
+
+  <p class="muted">
+    状态 <span class="tag" data-testid="project-status">读取中…</span>
+    · 数据类型 <span class="tag" data-testid="data-kind">读取中…</span>
+    · <span data-testid="project-id" class="muted"></span>
+  </p>
+
+  <p class="notice" data-testid="test-badge" hidden>
+    本项目的回答是<strong>测试样例</strong>，不得当作真实用户反馈。
+  </p>
+
+  <p class="notice notice-warn" data-testid="running-badge" hidden>
+    Agent 任务执行中，请等待本次运行结束后再操作。
+  </p>
+
+  <div class="actions" data-testid="ws-actions">
+    <button type="button" class="button button-primary"
+            data-testid="plan-generate" disabled>生成验证方案与草稿</button>
+    <a class="button button-ghost" data-testid="draft-edit" hidden>编辑服务页与问卷</a>
+    <a class="button button-ghost" data-testid="draft-preview-service" hidden>预览服务页</a>
+    <a class="button button-ghost" data-testid="draft-preview-survey" hidden>预览问卷</a>
+    <button type="button" class="button button-primary"
+            data-testid="experiment-publish" hidden>发布实验</button>
+  </div>
+
+  <p class="form-status" data-testid="ws-status" role="status" aria-live="polite"></p>
+  <div class="field-errors" data-testid="field-errors" hidden></div>
+</section>
+
+<section class="card">
+  <h2>项目信息</h2>
+  <dl class="service-meta" data-testid="project-meta">
+    <dt>读取中</dt><dd>正在从 /api/projects/{id} 获取项目详情…</dd>
+  </dl>
+</section>
+
+<section class="card" data-testid="plan-card">
+  <h2>验证方案</h2>
+  <p class="muted" data-testid="plan-empty">
+    还没有验证方案。点「生成验证方案与草稿」后，这里会显示目标客户、痛点、3 条待验证假设、执行步骤与下一步任务。
+  </p>
+  <div data-testid="plan-body" hidden></div>
+</section>
+
+<section class="card" data-testid="draft-card">
+  <h2>实验草稿</h2>
+  <p class="muted" data-testid="draft-empty">
+    还没有实验草稿。生成方案时会同时创建服务页文案与问卷草稿。
+  </p>
+  <div data-testid="draft-body" hidden></div>
+</section>
+
+<section class="card" data-testid="links-card" hidden>
+  <h2>分享链接</h2>
+  <p class="muted">只有<strong>人工发布</strong>之后这两个链接才对访客可用；发布前访问会返回 404。</p>
+  <dl class="service-meta">
+    <dt>服务展示页</dt>
+    <dd><span class="mono" data-testid="service-url">—</span>
+        <button type="button" class="button button-ghost" data-testid="copy-service-url">复制</button></dd>
+    <dt>公开问卷</dt>
+    <dd><span class="mono" data-testid="survey-url">—</span>
+        <button type="button" class="button button-ghost" data-testid="copy-survey-url">复制</button></dd>
+  </dl>
+  <p class="muted" data-testid="published-at"></p>
+</section>
+
+<section class="card">
+  <h2>工具运行日志</h2>
+  <p class="muted">
+    只显示数据库里真实发生的运行与工具调用；失败保留错误码，不预先渲染假成功时间线。
+  </p>
+  <div id="ws-logs" data-testid="run-log" data-rendered-by="js">
+    <p class="muted" data-testid="runs-empty">还没有运行记录。</p>
+  </div>
+</section>
+
+<section class="card" data-testid="statistics-card">
+  <h2>反馈统计与复盘</h2>
+  <p class="notice" data-testid="statistics-pending">
+    A06 统计接口与 A07 复盘/报告接口尚未完成，本区域按冻结契约预留：
+    接通前不显示任何统计数字或报告内容，避免出现假数据。
+  </p>
+  <div class="actions">
+    <button type="button" class="button" data-testid="response-count" disabled
+            title="等待 A06 统计接口">有效回答份数：待接通</button>
+    <button type="button" class="button" data-testid="review-generate" disabled
+            title="等待 A07 复盘接口">生成复盘</button>
+    <button type="button" class="button" data-testid="report-content" disabled
+            title="等待 A07 报告接口">查看报告</button>
+    <button type="button" class="button" data-testid="report-download" disabled
+            title="等待 A07 报告导出">下载 Markdown</button>
+  </div>
+</section>
+{% endblock %}
