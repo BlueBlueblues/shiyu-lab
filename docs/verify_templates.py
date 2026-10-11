@@ -239,7 +239,8 @@ def run_checks(client: TestClient, anonymous: TestClient) -> None:
     # ---------- 8. /health ----------
     health = anonymous.get("/health")
     payload_health = health.json() if health.status_code == 200 else None
-    check("GET /health 返回 {status: ok}", payload_health == {"status": "ok"},
+    check('GET /health 返回 {"data":{"status":"ok"}}',
+          health.status_code == 200 and payload_health == {"data": {"status": "ok"}},
           f"实际返回 {json.dumps(payload_health, ensure_ascii=False)}")
 
 

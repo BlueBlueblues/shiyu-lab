@@ -239,11 +239,24 @@ def test_restart_preserves(setup):
         assert replay.status_code == 200 and replay.json()["data"]["response_id"] == first["response_id"]
 
 
-def test_missing_B_template_explicit(setup):
-    with TestClient(create_app(setup[0])) as client:
+def test_missing_B_template_explicit(setup, tmp_path, monkeypatch):
+    app = create_app(setup[0])
+    empty_templates = tmp_path / "empty_templates"
+    empty_templates.mkdir()
+    with TestClient(app) as client:
         publish(client, setup)
-        response = client.get(f"/e/{setup[3]}")
-        assert response.status_code == 500 and "成员 B" in response.json()["error"]["message"]
+        assert client.get(f"/e/{setup[3]}").status_code == 200
+        # 独立空目录触发真实 TemplateNotFound，不依赖仓库模板是否已交付。
+        with monkeypatch.context() as patch:
+            patch.setattr(app.state, "templates", Jinja2Templates(directory=str(empty_templates)))
+            response = client.get(f"/e/{setup[3]}")
+            assert response.status_code == 500
+            assert response.json() == {"error": {
+                "code": "INTERNAL_ERROR",
+                "message": "页面模板尚未由成员 B 交付，页面集成未完成。",
+                "fields": {},
+            }}
+        assert client.get(f"/e/{setup[3]}").status_code == 200
 
 
 def test_publish_revalidates_corrupted_content(client, setup):
