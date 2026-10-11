@@ -86,7 +86,11 @@ def test_write_protection(client, setup):
     assert client.post(f"/api/projects/{setup[1]}/review", json={}, **options).status_code == 403
 
 
-def test_zero_feedback_real_logs(client, setup, model):
+@pytest.mark.parametrize("wrapper", ["{}", "好的，这是复盘：\n{}\n结束语", "好的，这是复盘：\n```json\n{}\n```\n结束语"])
+def test_zero_feedback_real_logs(client, setup, model, wrapper):
+    body = model.return_value.json()
+    body["choices"][0]["message"]["content"] = wrapper.format(body["choices"][0]["message"]["content"])
+    model.return_value = httpx.Response(200, request=model.return_value.request, json=body)
     publish(client, setup)
     response = review(client, setup)
     assert response.status_code == 200
@@ -136,20 +140,20 @@ def test_evidence_stale_new_snapshot_markdown(client, setup, model, review_data)
     assert client.get(f"/api/projects/{setup[1]}", **admin(setup)).json()["data"]["project"]["status"] == "reviewed"
 
 
-@pytest.mark.parametrize("invalid", ["json", "structure", "hypothesis", "question", "option", "response", "wrong_response_question", "upstream", "timeout"])
+@pytest.mark.parametrize("invalid", ["json", "prose_json", "prose_structure", "structure", "hypothesis", "question", "option", "response", "wrong_response_question", "upstream", "timeout"])
 def test_failures_preserve_and_unlock(client, setup, model, review_data, invalid):
     publish(client, setup)
     submit(client, setup)
     assert review(client, setup).status_code == 200
     original = stored(setup)
     data = copy.deepcopy(review_data)
-    if invalid == "json":
+    if invalid in ("json", "prose_json"):
         model.return_value = httpx.Response(200, request=httpx.Request("POST", "https://model.example.invalid"),
-            json={"choices": [{"message": {"content": "not json"}, "finish_reason": "stop"}]})
+            json={"choices": [{"message": {"content": "说明\n{\"summary\": invalid}\n结束语" if invalid == "prose_json" else "not json"}, "finish_reason": "stop"}]})
     elif invalid == "upstream": model.return_value = httpx.Response(503, request=httpx.Request("POST", "https://model.example.invalid"))
     elif invalid == "timeout": model.side_effect = httpx.ReadTimeout("sensitive timeout")
     else:
-        if invalid == "structure": del data["summary"]
+        if invalid in ("structure", "prose_structure"): del data["summary"]
         elif invalid == "hypothesis": data["hypothesis_assessments"][0]["hypothesis_id"] = "h9"
         else:
             ref = {"question_id": "q1", "option_id": "o1"}
@@ -159,6 +163,10 @@ def test_failures_preserve_and_unlock(client, setup, model, review_data, invalid
             else: ref = {"question_id": "q1", "response_id": 1}
             data["hypothesis_assessments"][0]["evidence_refs"] = [ref]
         model.return_value = model_response(data)
+        if invalid == "prose_structure":
+            body = model.return_value.json()
+            body["choices"][0]["message"]["content"] = "说明\n" + json.dumps(data) + "\n结束语"
+            model.return_value = httpx.Response(200, request=model.return_value.request, json=body)
     failed = review(client, setup)
     assert failed.status_code in (502, 504)
     assert "sensitive" not in failed.text and stored(setup) == original

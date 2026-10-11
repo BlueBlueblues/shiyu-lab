@@ -1,12 +1,11 @@
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from app.config import Settings
 from app.schemas import Plan, ProjectCreate
-from app.services.llm_client import CallInfo, LLMError, call_model
+from app.services.llm_client import CallInfo, LLMError, call_model, extract_json_object
 
 logger = logging.getLogger(__name__)
 PLAN_PROMPT = Path(__file__).resolve().parent.parent / "prompts" / "plan.txt"
@@ -19,12 +18,8 @@ class PlanResult:
 
 
 def parse_plan(text: str) -> Plan:
-    content = text.strip()
-    fenced = re.fullmatch(r"```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```", content, flags=re.IGNORECASE)
-    if fenced:
-        content = fenced.group(1)
     try:
-        return Plan.model_validate(json.loads(content))
+        return Plan.model_validate(json.loads(extract_json_object(text)))
     except (ValueError, TypeError, RecursionError):
         raise LLMError("LLM_OUTPUT_INVALID") from None
 

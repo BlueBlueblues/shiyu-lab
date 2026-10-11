@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import socket
 import ssl
 import time
@@ -45,6 +46,16 @@ class LLMError(Exception):
 class ModelReply:
     text: str = field(repr=False)
     call_info: CallInfo
+
+
+def extract_json_object(text: str) -> str:
+    # 不跳过首个容器或选取多个对象中的一个，避免猜测模型意图。
+    # shortcut: 前缀含 {/[ 或后缀含 } 时保守拒绝，需支持这类说明时再扩展边界识别。
+    start = re.search(r"[\[{]", text)
+    end = text.rfind("}")
+    if start is None or start.group() != "{" or end < start.start():
+        raise ValueError("Missing JSON object")
+    return text[start.start():end + 1]
 
 
 def _token_usage(value) -> dict | None:

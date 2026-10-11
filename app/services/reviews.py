@@ -1,9 +1,8 @@
 import json
-import re
 from pathlib import Path
 
 from app.schemas import Review
-from app.services.llm_client import LLMError, call_model
+from app.services.llm_client import LLMError, call_model, extract_json_object
 
 PROMPT = Path(__file__).resolve().parent.parent / "prompts" / "review.txt"
 
@@ -14,9 +13,7 @@ def generate_review(project, plan, statistics, settings):
         "questions": [q.model_dump() for q in plan.questions], "statistics": statistics.model_dump(mode="json"),
     }, settings)
     try:
-        content = reply.text.strip()
-        fenced = re.fullmatch(r"```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```", content, flags=re.IGNORECASE)
-        review = Review.model_validate(json.loads(fenced.group(1) if fenced else content))
+        review = Review.model_validate(json.loads(extract_json_object(reply.text)))
         questions = {q.id: q for q in statistics.questions}
         for assessment in review.hypothesis_assessments:
             for ref in assessment.evidence_refs:

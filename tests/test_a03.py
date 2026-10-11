@@ -117,7 +117,7 @@ def test_valid_plan_request_metadata_and_secret_free_logs(settings, project, pla
     assert plan_data["target_customer"] not in repr(result)
 
 
-@pytest.mark.parametrize("fence", ["plain", "json", "bare", "upper_crlf"])
+@pytest.mark.parametrize("fence", ["plain", "json", "bare", "upper_crlf", "prose", "prose_fence"])
 def test_whole_response_fences(plan_data, fence):
     content = json.dumps(plan_data)
     if fence == "json":
@@ -126,6 +126,35 @@ def test_whole_response_fences(plan_data, fence):
         content = "```\n" + content + "\n```"
     elif fence == "upper_crlf":
         content = "```JSON\r\n" + content + "\r\n```"
+    elif fence == "prose":
+        content = "好的，这是方案：\n" + content + "\n结束语"
+    elif fence == "prose_fence":
+        content = "好的，这是方案：\n```json\n" + content + "\n```\n结束语"
+    assert parse_plan(content).model_dump() == plan_data
+
+
+@pytest.mark.parametrize("invalid", ["syntax", "missing", "multiple", "array", "truncated"])
+def test_prose_does_not_repair_or_select_plan(plan_data, invalid):
+    content = json.dumps(plan_data)
+    if invalid == "syntax":
+        content = content[:-1] + ",}"
+    elif invalid == "missing":
+        del plan_data["target_customer"]
+        content = json.dumps(plan_data)
+    elif invalid == "multiple":
+        content += "\n" + content
+    elif invalid == "array":
+        content = "[" + content + "]"
+    else:
+        content = content[:-1]
+    with pytest.raises(LLMError) as caught:
+        parse_plan("好的，这是方案：\n" + content + "\n结束语")
+    assert caught.value.code == "LLM_OUTPUT_INVALID"
+
+
+def test_prose_preserves_braces_and_escaped_quotes_in_strings(plan_data):
+    plan_data["pain_points"] = ['文字含 {花括号}、[括号]、"引号" 和反斜杠 \\']
+    content = "好的，这是方案：\n" + json.dumps(plan_data) + "\n结束语"
     assert parse_plan(content).model_dump() == plan_data
 
 

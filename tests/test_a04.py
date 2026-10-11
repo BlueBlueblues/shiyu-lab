@@ -100,7 +100,12 @@ def detail(client, run_id):
     return response.json()["data"]
 
 
-def test_success_creates_consistent_plan_draft_and_real_logs(client, settings, project_id, payload, plan_data, model):
+@pytest.mark.parametrize("prose", [False, True])
+def test_success_creates_consistent_plan_draft_and_real_logs(client, settings, project_id, payload, plan_data, model, prose):
+    if prose:
+        body = model.return_value.json()
+        body["choices"][0]["message"]["content"] = "好的，这是方案：\n" + json.dumps(plan_data) + "\n结束语"
+        model.return_value = httpx.Response(200, request=model.return_value.request, json=body)
     response = generate(client, project_id)
     assert response.status_code == 200, response.text
     result = response.json()["data"]
