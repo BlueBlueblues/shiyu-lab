@@ -177,6 +177,31 @@ def test_bad_output_is_not_guessed_or_replaced(settings, project, post, text, ca
     post.assert_called_once()
 
 
+@pytest.mark.parametrize("kind", ["schema", "json", "contract", "extra_secret"])
+def test_plan_failure_diagnostics_are_specific_and_redacted(settings, project, plan_data, post, caplog, kind):
+    if kind == "schema":
+        plan_data["questions"][0]["required"] = "private-output-secret"
+    elif kind == "contract":
+        plan_data["hypotheses"][0]["question_ids"] = ["nonexistent-private-output-secret"]
+    elif kind == "extra_secret":
+        plan_data["private-output-secret"] = "private-output-secret"
+    content = "{broken private-output-secret}" if kind == "json" else json.dumps(plan_data)
+    post.return_value = response(completion(content))
+    caplog.set_level(logging.INFO, logger="app.services")
+    with pytest.raises(LLMError) as caught:
+        generate_plan(project, settings)
+    info = caught.value.call_info
+    assert info.stage == "plan_validation" and info.http_status == 200
+    assert info.failure_kind == {"schema": "plan_schema", "json": "plan_json", "contract": "plan_contract", "extra_secret": "plan_schema"}[kind]
+    expected = {"schema": "bool_type", "json": "json_decode", "contract": "value_error", "extra_secret": "extra_forbidden"}[kind]
+    assert expected in {item["type"] for item in info.validation_errors}
+    if kind == "schema":
+        assert info.validation_errors[0]["path"] == ["questions", 0, "required"]
+    assert "private-output-secret" not in caplog.text
+    assert "a03-test-key" not in caplog.text and "a03-test-password" not in caplog.text
+    post.assert_called_once()
+
+
 @pytest.mark.parametrize("path,value", [
     (("questions",), []), (("questions", 1, "id"), "q1"),
     (("questions", 0, "options", 1, "id"), "o1"), (("questions", 2, "type"), "single"),

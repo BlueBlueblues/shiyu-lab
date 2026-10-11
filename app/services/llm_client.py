@@ -32,6 +32,7 @@ class CallInfo:
     failure_kind: str | None = None
     exception_type: str | None = None
     cause_types: list[str] = field(default_factory=list)
+    validation_errors: list[dict] | None = None
 
 
 class LLMError(Exception):
