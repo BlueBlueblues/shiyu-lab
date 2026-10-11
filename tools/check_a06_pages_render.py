@@ -139,7 +139,7 @@ def main() -> int:
         check("  未发布时复盘入口禁用、无报告时查看/下载为禁用占位",
               all(('data-testid="%s" disabled' % t) in flat
                   for t in ("review-generate", "report-content", "report-download")))
-        check("  未发布时统计区说明接口返回 400", "INVALID_STATE" in html)
+        check("  未发布时统计区说明发布前置步骤", "请先检查草稿并发布" in html)
         check("  不出现任何假统计数字", "percentage" not in html and "response_count" not in html)
         check("  内联配置存在且含题干", "__FO_WORKSPACE__" in html and "是否遇到整理困难" in html)
     except Exception as error:  # noqa: BLE001

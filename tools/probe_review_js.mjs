@@ -216,9 +216,9 @@ const before = draft.requests.length;
 draft.byTestId['review-generate'].fire('click');
 await new Promise((r) => setTimeout(r, 20));
 check('未发布时不发复盘请求', draft.requests.length === before);
-check('未发布时说明接口会返回 400',
+check('未发布时说明发布前置步骤',
   draft.byTestId['review-status'].textContent.includes('尚未发布')
-  && draft.byTestId['review-status'].textContent.includes('INVALID_STATE'),
+  && draft.byTestId['review-status'].textContent.includes('检查草稿并发布'),
   draft.byTestId['review-status'].textContent);
 
 /* ---------------- 4. 取消确认：不发请求 ---------------- */

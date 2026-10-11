@@ -17,7 +17,8 @@
 
 {% block nav %}
   <nav class="site-nav">
-    <span class="nav-note">管理端</span>
+    <span class="nav-note">个人项目空间</span>
+    <a href="/projects/{{ experiment.project_id }}#experiment-draft" data-testid="draft-back">返回项目工作台</a>
     {% if experiment.service_url %}<a href="{{ experiment.service_url }}">公开服务页</a>{% endif %}
   </nav>
 {% endblock %}
@@ -32,6 +33,7 @@
 </script>
 
 <section class="card">
+  <p class="step-hint" data-testid="draft-step-hint">第 2 步 / 共 4 步 · AI 验证计划与实验草稿</p>
   <h1>{% if is_locked %}实验草稿（已发布，只读）{% else %}编辑实验草稿{% endif %}</h1>
 
   {% if is_locked %}
@@ -47,20 +49,30 @@
   {% endif %}
 
   <p class="muted">
-    只允许修改以下文本内容。题号、题型、选项编号与数量由后端锁定，改动结构会被服务器拒绝（422）。
+    {% if is_locked %}
+    以下是已发布的文案和题目，仅供查看。如需调整，请新建下一轮项目。
+    {% elif running_run_id %}
+    任务执行期间，以下内容暂时只读。请等待完成后再编辑和保存。
+    {% else %}
+    可以调整服务文案、题目文字和必答设置；题号、题型及选项数量保持不变。
+    {% endif %}
   </p>
+  {% if not is_locked %}
+  <p class="notice" data-testid="draft-next-step">保存 → 预览服务页与问卷 → 返回项目工作台发布。离开本页前请先保存，发布后题目和文案将锁定。</p>
+  {% endif %}
 
   <div class="preview-links">
     <a class="button button-ghost"
        href="/experiments/{{ experiment.id }}/preview/service">预览服务页</a>
     <a class="button button-ghost"
        href="/experiments/{{ experiment.id }}/preview/survey">预览问卷</a>
+    <a class="button button-ghost" href="/projects/{{ experiment.project_id }}#project-actions">返回工作台{% if not is_locked %}发布{% endif %}</a>
   </div>
 </section>
 
 <form id="experiment-form" data-testid="experiment-form"
       data-experiment-id="{{ experiment.id }}"
-      data-locked="{{ 'true' if is_locked else 'false' }}">
+      data-locked="{{ 'true' if (is_locked or running_run_id) else 'false' }}">
 
   {# ---------------- 服务页文案 ---------------- #}
   <section class="card">
@@ -70,39 +82,39 @@
       <label for="landing-title">服务标题</label>
       <input type="text" id="landing-title" name="title" maxlength="200"
              value="{{ experiment.landing.title }}"
-             {% if is_locked %}readonly{% endif %}>
+             {% if is_locked or running_run_id %}readonly{% endif %}>
     </div>
 
     <div class="field">
       <label for="landing-summary">服务简介</label>
       <textarea id="landing-summary" name="summary" rows="4" maxlength="1000"
-                {% if is_locked %}readonly{% endif %}>{{ experiment.landing.summary }}</textarea>
+                {% if is_locked or running_run_id %}readonly{% endif %}>{{ experiment.landing.summary }}</textarea>
     </div>
 
     <div class="field">
       <label for="landing-target-users">目标用户</label>
       <input type="text" id="landing-target-users" name="target_users" maxlength="500"
              value="{{ experiment.landing.target_users }}"
-             {% if is_locked %}readonly{% endif %}>
+             {% if is_locked or running_run_id %}readonly{% endif %}>
     </div>
 
     <div class="field">
       <label for="landing-value">价值主张</label>
       <input type="text" id="landing-value" name="value_proposition" maxlength="500"
              value="{{ experiment.landing.value_proposition }}"
-             {% if is_locked %}readonly{% endif %}>
+             {% if is_locked or running_run_id %}readonly{% endif %}>
     </div>
 
     <div class="field">
       <label for="landing-features">能力说明（每行一项，最多 6 项）</label>
       <textarea id="landing-features" name="features" rows="4"
-                {% if is_locked %}readonly{% endif %}>{{ experiment.landing.features | join('\n') }}</textarea>
+                {% if is_locked or running_run_id %}readonly{% endif %}>{{ experiment.landing.features | join('\n') }}</textarea>
     </div>
 
     <div class="field">
       <label for="landing-disclaimer">验证声明（必须如实说明当前处于需求验证阶段）</label>
       <textarea id="landing-disclaimer" name="disclaimer" rows="3" maxlength="500"
-                {% if is_locked %}readonly{% endif %}>{{ experiment.landing.disclaimer }}</textarea>
+                {% if is_locked or running_run_id %}readonly{% endif %}>{{ experiment.landing.disclaimer }}</textarea>
     </div>
   </section>
 
@@ -123,14 +135,14 @@
         <input type="text" id="q-{{ question.id }}-title"
                name="question-{{ question.id }}-title" maxlength="200"
                value="{{ question.title }}"
-               {% if is_locked %}readonly{% endif %}>
+               {% if is_locked or running_run_id %}readonly{% endif %}>
       </div>
 
       <div class="field field-inline">
         <input type="checkbox" id="q-{{ question.id }}-required"
                name="question-{{ question.id }}-required"
                {% if question.required %}checked{% endif %}
-               {% if is_locked %}disabled{% endif %}>
+               {% if is_locked or running_run_id %}disabled{% endif %}>
         <label for="q-{{ question.id }}-required">必答题</label>
       </div>
 
@@ -145,7 +157,7 @@
           <input type="text" id="opt-{{ question.id }}-{{ option.id }}"
                  name="option-{{ question.id }}-{{ option.id }}-label" maxlength="80"
                  value="{{ option.label }}"
-                 {% if is_locked %}readonly{% endif %}>
+                 {% if is_locked or running_run_id %}readonly{% endif %}>
         </div>
         {% endfor %}
       {% endif %}
@@ -156,7 +168,8 @@
   {% if not is_locked %}
   <section class="card actions">
     <button type="button" class="button button-primary"
-            data-testid="experiment-save" data-role="save">保存草稿</button>
+            data-testid="experiment-save" data-role="save" {% if running_run_id %}disabled{% endif %}>保存草稿</button>
+    <a class="button button-ghost" href="/projects/{{ experiment.project_id }}#project-actions">返回项目工作台</a>
     <span class="form-status" data-testid="experiment-status" role="status" aria-live="polite"></span>
   </section>
   {% endif %}

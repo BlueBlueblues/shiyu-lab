@@ -39,9 +39,9 @@ function page(detail) {
     querySelectorAll: () => [], createElement: () => new Node(),
     createTextNode: text => { const n = new Node(); n.textContent = text; return n; }
   };
-  const sandbox = { document, AbortController, Intl, Date, console,
+  const sandbox = { document, AbortController, Intl, Date, console, navigator: { clipboard: null },
     window: { setTimeout, clearTimeout, confirm: () => true,
-      __FO_WORKSPACE__: detail ? { projectId: detail.project.id, experimentId: detail.experiment?.id,
+      __FO_WORKSPACE__: detail ? { projectId: detail.project.id, projectStatus: detail.project.status, experimentId: detail.experiment?.id,
         published: Boolean(detail.experiment?.published_at), questions: detail.experiment?.questions || [] } : {},
       location: { pathname: '/projects/p1', reload() { this.reloads = (this.reloads || 0) + 1; } } },
     fetch: async (url, init) => {
@@ -86,6 +86,7 @@ check('服务端首屏只读取运行列表', ws.requests.map(r => r.url).join('
 check('草稿不请求统计与原始回答', ws.requests.every(r => !/statistics|responses/.test(r.url)));
 ws.replies.push({ error: { code: 'RUN_IN_PROGRESS' } }, { data: { ...detail, running_run_id: 'running' } }, { data: [] });
 ws.node('plan-generate').handlers.click();
+check('任务发起时禁用全部写操作', ws.node('plan-generate').disabled && ws.node('experiment-publish').disabled && ws.node('review-generate').disabled);
 await flush();
 check('生成请求使用正式 API 与空对象', ws.requests[1].url === '/api/projects/p1/plan' && ws.requests[1].init.body === '{}');
 check('任务冲突后刷新状态并保持禁用', ws.node('plan-generate').disabled && ws.node('experiment-publish').disabled);
@@ -99,6 +100,13 @@ await flush();
 check('发布请求使用正式 API 与空对象', pub.requests[1].url === '/api/experiments/e1/publish' && pub.requests[1].init.body === '{}');
 check('发布成功重载正式服务端工作台', pub.window.location.reloads === 1 && pub.node('experiment-publish').disabled);
 check('禁用的复盘入口未发出请求', [...ws.requests, ...pub.requests].every(r => !/review|report/.test(r.url)));
+const uncertain = page(detail);
+uncertain.api.initWorkspacePage(uncertain.document);
+await flush();
+uncertain.replies.push({ reject: true }, { data: { ...published, project: { ...detail.project, status: 'collecting' } } }, { data: [] });
+uncertain.node('experiment-publish').handlers.click();
+await flush();
+check('请求异常但后端已完成发布时重载真实阶段', uncertain.window.location.reloads === 1 && uncertain.node('experiment-publish').hidden);
 
 // Response-body waits stay inside the deadline after headers have arrived.
 const timed = page();
@@ -113,4 +121,51 @@ await flush();
 check('管理 90 秒期限覆盖响应体读取', deadline.ms === 90000 && !cleared);
 deadline.callback();
 check('响应体超时映射 TIMEOUT 并清理定时器', (await waiting).code === 'TIMEOUT' && cleared);
+const shareUrl = 'http://[2001:db8:1234:5678:abcd:ef01:2345:6789]:8000/e/token/survey';
+function copyPage(clipboard) {
+  const p = page(published);
+  p.navigator.clipboard = clipboard;
+  for (const kind of ['service', 'survey']) {
+    const target = p.node(kind + '-url');
+    target.value = shareUrl + (kind === 'service' ? '?service' : '');
+    target.focus = () => { p.document.activeElement = target; };
+    target.select = () => { target.selectionStart = 0; target.selectionEnd = target.value.length; };
+    target.setSelectionRange = (start, end) => { target.selectionStart = start; target.selectionEnd = end; };
+  }
+  p.api.initWorkspacePage(p.document);
+  return p;
+}
+let finishCopy, copied;
+const success = copyPage({ writeText: value => { copied = value; return new Promise(resolve => { finishCopy = resolve; }); } });
+success.node('copy-survey-url').handlers.click();
+check('剪贴板未完成时不宣称已复制', !success.node('copy-survey-status').textContent.includes('已复制'));
+finishCopy();
+await flush();
+check('成功复制后端 IPv6 链接并就地提示', copied === shareUrl && success.node('copy-survey-status').textContent === '链接已复制。');
+check('复制提示不覆盖顶部或另一条链接', success.node('ws-status').textContent === '' && success.node('copy-service-status').textContent === '');
+for (const [name, clipboard] of [
+  ['不支持剪贴板', null],
+  ['拒绝剪贴板权限', { writeText: () => Promise.reject(new Error('denied')) }],
+  ['剪贴板同步异常', { writeText: () => { throw new Error('denied'); } }],
+]) {
+  const p = copyPage(clipboard);
+  p.node('copy-service-url').handlers.click();
+  await flush();
+  const target = p.node('service-url');
+  check(name + '时选中对应链接', p.document.activeElement === target && target.selectionStart === 0 && target.selectionEnd === target.value.length);
+  check(name + '时提示手动复制且不宣称已复制', p.node('copy-service-status').textContent.includes('Ctrl+C')
+    && p.node('copy-service-status').textContent.includes('长按') && !p.node('copy-service-status').textContent.includes('已复制'));
+}
+const failed = copyPage(null);
+failed.node('survey-url').select = () => { throw new Error('selection blocked'); };
+failed.node('copy-survey-url').handlers.click();
+check('选中回退异常有明确反馈', failed.node('copy-survey-status').textContent.includes('无法自动选中链接'));
+const unfocused = copyPage(null);
+unfocused.node('survey-url').focus = () => {};
+unfocused.node('copy-survey-url').handlers.click();
+check('静默聚焦失败也有反馈', unfocused.node('copy-survey-status').textContent.includes('无法自动选中链接'));
+const missing = copyPage(null);
+missing.node('survey-url').value = '';
+missing.node('copy-survey-url').handlers.click();
+check('空链接不会触发复制或误报成功', missing.node('copy-survey-status').textContent.includes('先发布实验'));
 console.log(`结果：${passed} 项通过，0 项失败`);

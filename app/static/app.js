@@ -762,7 +762,7 @@
       return;
     }
     if (!config.published) {
-      setStatus(statusNode, "实验尚未发布，统计接口返回 400（INVALID_STATE）。", null);
+      setStatus(statusNode, "实验尚未发布，请先检查草稿并发布，再查看反馈统计。", null);
       return;
     }
 
@@ -881,13 +881,23 @@
     var publishButton = byTestId("experiment-publish");
     var reviewButton = byTestId("review-generate");
     var reviewStatus = byTestId("review-status");
+    var stageStatus = byTestId("ws-stage-status");
     var logs = byTestId("run-log");
 
-    function say(text, kind) { setStatus(statusBox, text, kind); }
+    function say(text, kind) {
+      setStatus(statusBox, text, kind);
+      setStatus(stageStatus, text, kind);
+    }
 
     function refreshActions() {
       return request("GET", "/api/projects/" + encodeURIComponent(projectId), undefined, { admin: true })
         .then(function (detail) {
+          if (config.projectStatus && detail.project && detail.project.status !== config.projectStatus) {
+            window.location.reload();
+          }
+          if (detail.running_run_id) {
+            setStatus(stageStatus, "AI 任务仍在执行，请等待完成后再编辑、生成或发布。", null);
+          }
           var locked = Boolean(detail.running_run_id || (detail.experiment && detail.experiment.published_at));
           if (planButton) { planButton.disabled = locked; }
           if (publishButton) {
@@ -901,6 +911,7 @@
         })
         .then(function (runs) { if (logs) { renderRuns(logs, runs); } })
         .catch(function () {
+          setStatus(stageStatus, "暂时无法确认任务是否结束，请刷新页面查看最新状态。", "error");
           if (planButton) { planButton.disabled = true; }
           if (publishButton) { publishButton.disabled = true; }
           if (reviewButton) { reviewButton.disabled = true; }
@@ -914,6 +925,8 @@
           return;
         }
         planButton.disabled = true;
+        if (publishButton) { publishButton.disabled = true; }
+        if (reviewButton) { reviewButton.disabled = true; }
         say("正在调用模型生成验证方案，通常需要几十秒，请不要重复点击…", null);
         showFieldErrors(errorBox, null);
         request("POST", "/api/projects/" + encodeURIComponent(projectId) + "/plan", {},
@@ -933,6 +946,8 @@
         if (!window.confirm("发布后服务页文案与问卷题目立即锁定，公开链接对访客可用。"
           + "发布不会被生成计划自动触发，确定现在发布？")) { return; }
         publishButton.disabled = true;
+        if (planButton) { planButton.disabled = true; }
+        if (reviewButton) { reviewButton.disabled = true; }
         say("正在发布…", null);
         request("POST", "/api/experiments/" + encodeURIComponent(config.experimentId) + "/publish", {},
                 { admin: true, timeout: ADMIN_TIMEOUT_MS })
@@ -949,15 +964,17 @@
       reviewButton.addEventListener("click", function () {
         if (!config.experimentId) { return; }
         if (!config.published) {
-          setStatus(reviewStatus, "实验尚未发布，复盘接口会返回 400（INVALID_STATE）；"
-            + "请先发布并收集真实回答。", "error");
+          setStatus(reviewStatus, "实验尚未发布，请先检查草稿并发布，再生成复盘。", "error");
           return;
         }
         if (!window.confirm("复盘会读取当前全部回答并调用模型生成报告。"
           + "报告保存读取反馈时的统计快照，之后新增回答不会改变它的数字，只会提示「已有新反馈」。"
           + "确定继续？")) { return; }
         reviewButton.disabled = true;
+        if (planButton) { planButton.disabled = true; }
+        if (publishButton) { publishButton.disabled = true; }
         setStatus(reviewStatus, "正在读取反馈并复盘，通常需要几十秒，请不要重复点击…", null);
+        setStatus(stageStatus, "AI 正在复盘，请等待完成后再操作。", null);
         request("POST", "/api/projects/" + encodeURIComponent(projectId) + "/review", {},
                 { admin: true, timeout: ADMIN_TIMEOUT_MS })
           .then(function (data) {
@@ -967,6 +984,7 @@
           })
           .catch(function (error) {
             // 请求失败不代表运行锁已释放（如 409 或网络中断），重新读取后端状态。
+            setStatus(stageStatus, "复盘失败：" + messageFor(error), "error");
             if (error && error.run_id) {
               setStatus(reviewStatus, "复盘失败：" + messageFor(error)
                 + "（运行编号 " + error.run_id + "，可在上方运行日志查看）", "error");
@@ -981,15 +999,35 @@
     ["service", "survey"].forEach(function (kind) {
       var button = byTestId("copy-" + kind + "-url");
       var target = byTestId(kind + "-url");
+      var copyStatus = byTestId("copy-" + kind + "-status");
       if (!button || !target) { return; }
       button.addEventListener("click", function () {
-        var url = (target.textContent || "").trim();
-        if (!url) { say("还没有可复制的链接，先完成人工发布。", "error"); return; }
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(url).then(function () { say("链接已复制。", "ok"); },
-            function () { say("复制失败，请手动选中链接复制。", "error"); });
-        } else {
-          say("当前浏览器不支持自动复制，请手动选中链接复制。", "error");
+        var url = (target.value || target.textContent || "").trim();
+        if (!url) { setStatus(copyStatus, "还没有可复制的链接，请先发布实验。", "error"); return; }
+        function manualCopy() {
+          try {
+            target.focus();
+            target.select();
+            target.setSelectionRange(0, url.length);
+            if (document.activeElement !== target || target.selectionStart !== 0 || target.selectionEnd !== url.length) {
+              throw new Error("Link selection failed");
+            }
+            setStatus(copyStatus, "自动复制不可用，已选中链接。请按 Ctrl+C（Mac 按 ⌘C）或在手机上长按复制。", null);
+          } catch (error) {
+            setStatus(copyStatus, "无法自动选中链接。请点按链接框手动选择并复制，或打开页面后复制地址栏中的链接。", "error");
+          }
+        }
+        setStatus(copyStatus, "正在复制…", null);
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            Promise.resolve(navigator.clipboard.writeText(url)).then(function () {
+              setStatus(copyStatus, "链接已复制。", "ok");
+            }, manualCopy);
+          } else {
+            manualCopy();
+          }
+        } catch (error) {
+          manualCopy();
         }
       });
     });

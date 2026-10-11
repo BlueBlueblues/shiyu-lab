@@ -41,6 +41,8 @@
     <span class="nav-note">个人项目空间</span>
     <a href="/projects" data-testid="nav-projects">项目列表</a>
     <a href="/projects/{{ project.id }}" data-testid="report-back">返回工作台</a>
+    <a href="/projects/{{ project.id }}#statistics" data-testid="report-back-feedback">查看最新反馈</a>
+    <a href="/projects/{{ project.id }}#review" data-testid="report-back-review">前往复盘区</a>
   </nav>
 {% endblock %}
 
@@ -62,7 +64,7 @@
 
   {% if running_run_id %}
   <p class="notice notice-warn" data-testid="report-running">
-    Agent 任务执行中（<span class="mono">{{ running_run_id }}</span>）：本页显示的是已保存的报告快照，不含本次运行的结果。
+    Agent 任务执行中（<span class="mono">{{ running_run_id }}</span>）：{% if report %}本页显示的是已保存的报告快照，不含本次运行的结果。{% else %}目前尚无已保存的复盘报告，请等待任务完成后查看结果。{% endif %}
   </p>
   {% endif %}
 </section>
@@ -75,11 +77,15 @@
     在没有回答时，报告的结论应当是「证据不足」，不会编造需求或成交证据。
   </p>
   <p class="muted">
-    收到真实回答后回到工作台点「生成复盘」；如果复盘失败，失败原因与 run_id 会留在工作台的运行日志里。
+    {% if running_run_id %}AI 任务仍在执行，请先等待完成，再回到工作台查看结果。
+    {% elif project.status in ['draft', 'planned'] %}先回到工作台生成并检查草稿，发布实验后才能生成复盘。
+    {% else %}可先收集真实回答，再回到工作台点击「生成复盘」；零回答也可以生成证据不足报告。
+    {% endif %}
+    如果复盘失败，可在工作台的运行日志里查看原因并重试。
   </p>
   <div class="actions">
-    <a class="button button-primary" href="/projects/{{ project.id }}"
-       data-testid="report-back-cta">回到工作台生成复盘</a>
+    <a class="button button-primary" href="/projects/{{ project.id }}{{ '#project-actions' if project.status in ['draft', 'planned'] else '#review' }}"
+       data-testid="report-back-cta">{{ '回到工作台检查并发布实验' if project.status in ['draft', 'planned'] else '回到工作台生成复盘' }}</a>
     <button type="button" class="button" data-testid="report-download" disabled
             title="还没有报告">下载 Markdown</button>
   </div>
@@ -111,7 +117,7 @@
   <div class="actions">
     <a class="button button-primary" href="/api/projects/{{ project.id }}/report.md"
        data-testid="report-download">下载 Markdown 报告</a>
-    <a class="button button-ghost" href="/projects/{{ project.id }}" data-testid="report-back-cta">回到工作台</a>
+    <a class="button button-ghost" href="/projects/{{ project.id }}#review" data-testid="report-back-cta">回到工作台{% if report.stale %}更新复盘{% endif %}</a>
   </div>
 </section>
 

@@ -194,7 +194,10 @@ check('多选题分母说明为 3 份',
 check('简答列出文本条目',
   flat.includes('第一份反馈') && flat.includes('第四份反馈'));
 check('统计区含题目题干（来自内联配置，接口不返回题干）',
-  flat.includes('遇到报名信息整理困难'), flat.slice(0, 60));
+  STATS.questions.every(question => {
+    const original = (CONFIG.questions || []).find(item => item.id === question.id);
+    return original && flat.includes(original.title);
+  }), flat.slice(0, 60));
 check('只请求了该实验的统计与运行日志',
   page.requests.every((r) => r.url.includes(CONFIG.experimentId) || r.url.includes(CONFIG.projectId)),
   page.requests.map((r) => r.url.replace('http://testserver', '')).join(' , '));
