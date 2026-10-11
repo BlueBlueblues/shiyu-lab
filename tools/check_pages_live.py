@@ -130,8 +130,11 @@ def run_checks() -> int:
                            'data-testid="experiment-publish"', 'data-testid="links-empty"', 'data-testid="project-status"',
                            'data-testid="project-meta"'):
                 check("  含 %s" % marker, marker in html)
-            check("  复盘页面入口明确禁用",
-                  all(('data-testid="%s" disabled' % t) in html
+            # 此处实验尚未发布：B 接通 A07 后，复盘按钮按"仅发布后可复盘"的规则禁用；
+            # 还没有报告时查看/下载也保持禁用占位。属性之间可能换行，先压空白再比较。
+            flat = " ".join(html.split())
+            check("  未发布时复盘入口禁用、无报告时查看/下载为禁用占位",
+                  all(('data-testid="%s" disabled' % t) in flat
                       for t in ("review-generate", "report-content", "report-download")))
 
         check("不存在的项目 404", client.get("/projects/no-such-id").status_code == 404)
@@ -163,6 +166,17 @@ def run_checks() -> int:
         check("人工发布返回实际分享链接", published.status_code == 200
               and published.json()["data"]["survey_url"] == "http://testserver/e/" + "p" * 44 + "/survey")
         check("发布后正式公开问卷 200", anonymous.get("/e/" + "p" * 44 + "/survey").status_code == 200)
+        # B 接通 A07 后：已发布且无运行中任务 → 复盘按钮可用（还没有报告，故为「生成复盘」）
+        published_flat = " ".join(client.get(f"/projects/%s" % PROJECT_ID).text.split())
+        check("发布后复盘按钮可用（未发布禁用的规则同时被验证）",
+              'data-testid="review-generate"' in published_flat
+              and 'data-testid="review-generate" disabled' not in published_flat
+              and "生成复盘" in published_flat)
+        check("报告页路由可用且显示尚无报告",
+              client.get(f"/projects/{PROJECT_ID}/report").status_code == 200
+              and 'data-testid="report-empty-card"' in client.get(f"/projects/{PROJECT_ID}/report").text)
+        check("无报告时报告 API 404（不返回空白成功结果）",
+              client.get(f"/api/projects/{PROJECT_ID}/report").status_code == 404)
         statistics = client.get(f"/api/experiments/{EXPERIMENT_ID}/statistics")
         check("A06 已存在且隔离实验真实零反馈", statistics.status_code == 200
               and statistics.json()["data"]["response_count"] == 0)

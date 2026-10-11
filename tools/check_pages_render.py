@@ -109,13 +109,19 @@ def main() -> int:
                    'data-testid="project-status"', 'data-testid="draft-edit"',
                    'data-testid="field-errors"'):
         check("workspace 含 %s" % marker, marker in html)
-    check("workspace 复盘页面入口明确禁用",
-          all(('data-testid="%s" disabled' % t) in html
+    # B 已交付 report.html 并接通复盘入口。未发布项目：复盘按钮应禁用；
+    # 还没有报告：查看/下载入口保持禁用占位（不显示空白成功结果）。
+    # 属性之间可能换行，比较前把连续空白压成一个空格。
+    flat = " ".join(html.split())
+    check("workspace 未发布时复盘入口禁用、无报告时查看/下载为禁用占位",
+          all(('data-testid="%s" disabled' % t) in flat
               for t in ("review-generate", "report-content", "report-download")))
     check("workspace 不显示任何假统计数字",
           "response_count" not in html and "percentage" not in html)
     check("workspace 草稿统计不展示数字且说明 INVALID_STATE", "INVALID_STATE" in html)
-    check("workspace 标注 A07 后端已实现与报告模板未交付", "后端已实现" in html and "report.html" in html)
+    check("workspace 写明复盘前提与快照口径",
+          "复盘只能针对" in html and "不会改变这份报告的数字" in html
+          and 'data-testid="review-hint"' in html)
 
     # 5) 既有页面回归（C 交付的 4 个）
     try:

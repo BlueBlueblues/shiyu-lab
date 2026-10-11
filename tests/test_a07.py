@@ -280,7 +280,10 @@ def test_atomic_report_and_success_logs(client, setup, model, monkeypatch):
     assert review(client, setup).status_code == 200
 
 
-def test_missing_report_template(client, setup):
+def test_missing_report_template(client, setup, tmp_path, monkeypatch):
+    empty = tmp_path / "empty_report_templates"
+    empty.mkdir()
+    monkeypatch.setattr(client.app.state, "templates", Jinja2Templates(directory=str(empty)))
     response = client.get(f"/projects/{setup[1]}/report", **admin(setup))
     assert response.status_code == 500 and "页面集成未完成" in response.json()["error"]["message"]
 

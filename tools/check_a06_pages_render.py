@@ -134,8 +134,10 @@ def main() -> int:
                        'data-testid="statistics-card"',
                        'data-testid="responses-load"'):
             check("  含 %s" % marker, marker in html)
-        check("  A07 后端已有、页面未接通的入口明确禁用",
-              all(('data-testid="%s" disabled' % t) in html
+        # B 已接通 A07：未发布项目复盘按钮禁用；无报告时查看/下载为禁用占位
+        flat = " ".join(html.split())
+        check("  未发布时复盘入口禁用、无报告时查看/下载为禁用占位",
+              all(('data-testid="%s" disabled' % t) in flat
                   for t in ("review-generate", "report-content", "report-download")))
         check("  未发布时统计区说明接口返回 400", "INVALID_STATE" in html)
         check("  不出现任何假统计数字", "percentage" not in html and "response_count" not in html)

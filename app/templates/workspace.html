@@ -270,16 +270,57 @@
 
 <section class="card" data-testid="review-card">
   <h2>复盘与报告</h2>
-  <p class="notice" data-testid="review-pending">
-    A07 复盘与报告后端已实现；report.html 尚待 B 交付，页面入口暂未接通。本区域在接通前不显示任何结论、数字或下载内容，避免出现假报告。
+
+  {% if latest_report_meta %}
+  <dl class="service-meta" data-testid="report-meta">
+    <dt>最新报告</dt>
+    <dd>
+      <a href="/projects/{{ project.id }}/report" data-testid="report-content">查看报告</a>
+      <a class="button button-ghost" href="/api/projects/{{ project.id }}/report.md"
+         data-testid="report-download">下载 Markdown</a>
+    </dd>
+    <dt>报告生成时间</dt>
+    <dd><time datetime="{{ latest_report_meta.created_at }}"
+              data-utc="{{ latest_report_meta.created_at }}">{{ latest_report_meta.created_at }}</time>（北京时间）</dd>
+    <dt>报告使用的回答</dt>
+    <dd data-testid="report-response-count">{{ latest_report_meta.response_count }} 份，
+        统计快照截止回答编号 {{ latest_report_meta.cutoff_response_id }}</dd>
+  </dl>
+
+  {% if latest_report_meta.stale %}
+  {# T09：报告之后又收到新反馈，旧报告的数字不能被当成最新结果 #}
+  <p class="notice notice-warn" data-testid="report-stale">
+    已有新反馈：这份报告只使用了前 {{ latest_report_meta.response_count }} 份回答，
+    当前反馈比它更多。可以重新生成复盘把新回答纳入；旧报告本身不会被覆盖，下载内容也仍是这份快照。
   </p>
+  {% else %}
+  <p class="muted" data-testid="report-fresh">报告与当前反馈一致，没有更新的回答。</p>
+  {% endif %}
+
+  {% else %}
+  <p class="muted" data-testid="report-empty">
+    还没有成功生成的复盘报告。收到真实回答后点「生成复盘」，这里会出现统计快照、结论、局限与下一步行动。
+  </p>
+  {% endif %}
+
   <div class="actions">
-    <button type="button" class="button" data-testid="review-generate" disabled
-            title="复盘页面待接通">生成复盘</button>
+    <button type="button" class="button button-primary" data-testid="review-generate"
+            {% if not experiment or not experiment.published_at or running_run_id %}disabled{% endif %}>
+      {% if latest_report_meta %}重新生成复盘{% else %}生成复盘{% endif %}
+    </button>
+    {% if not latest_report_meta %}
     <button type="button" class="button" data-testid="report-content" disabled
-            title="报告模板待交付">查看报告</button>
+            title="还没有报告">查看报告</button>
     <button type="button" class="button" data-testid="report-download" disabled
-            title="报告下载入口待接通">下载 Markdown</button>
+            title="还没有报告">下载 Markdown</button>
+    {% endif %}
+    <span class="form-status" data-testid="review-status" role="status" aria-live="polite"></span>
   </div>
+
+  <p class="muted" data-testid="review-hint">
+    复盘只能针对<strong>已发布</strong>的实验（草稿调用返回 400）。生成时会把当时的统计保存为快照：
+    之后新增的回答<strong>不会改变这份报告的数字</strong>，只会提示「已有新反馈」；
+    Markdown 下载内容与报告页显示的是同一份快照。
+  </p>
 </section>
 {% endblock %}

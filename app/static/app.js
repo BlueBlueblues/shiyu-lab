@@ -879,6 +879,8 @@
     var errorBox = byTestId("field-errors");
     var planButton = byTestId("plan-generate");
     var publishButton = byTestId("experiment-publish");
+    var reviewButton = byTestId("review-generate");
+    var reviewStatus = byTestId("review-status");
     var logs = byTestId("run-log");
 
     function say(text, kind) { setStatus(statusBox, text, kind); }
@@ -892,12 +894,16 @@
             publishButton.disabled = locked;
             publishButton.hidden = Boolean(detail.experiment && detail.experiment.published_at);
           }
+          if (reviewButton) {
+            reviewButton.disabled = Boolean(detail.running_run_id || !detail.experiment || !detail.experiment.published_at);
+          }
           return request("GET", "/api/projects/" + encodeURIComponent(projectId) + "/runs", undefined, { admin: true });
         })
         .then(function (runs) { if (logs) { renderRuns(logs, runs); } })
         .catch(function () {
           if (planButton) { planButton.disabled = true; }
           if (publishButton) { publishButton.disabled = true; }
+          if (reviewButton) { reviewButton.disabled = true; }
         });
     }
 
@@ -933,6 +939,40 @@
           .then(function () { window.location.reload(); })
           .catch(function (error) {
             say("发布失败：" + messageFor(error), "error");
+            return refreshActions();
+          });
+      });
+    }
+
+    // A07：生成复盘。报告保存工作流读取反馈时的统计快照，之后新增回答不会改动它。
+    if (reviewButton) {
+      reviewButton.addEventListener("click", function () {
+        if (!config.experimentId) { return; }
+        if (!config.published) {
+          setStatus(reviewStatus, "实验尚未发布，复盘接口会返回 400（INVALID_STATE）；"
+            + "请先发布并收集真实回答。", "error");
+          return;
+        }
+        if (!window.confirm("复盘会读取当前全部回答并调用模型生成报告。"
+          + "报告保存读取反馈时的统计快照，之后新增回答不会改变它的数字，只会提示「已有新反馈」。"
+          + "确定继续？")) { return; }
+        reviewButton.disabled = true;
+        setStatus(reviewStatus, "正在读取反馈并复盘，通常需要几十秒，请不要重复点击…", null);
+        request("POST", "/api/projects/" + encodeURIComponent(projectId) + "/review", {},
+                { admin: true, timeout: ADMIN_TIMEOUT_MS })
+          .then(function (data) {
+            setStatus(reviewStatus, "复盘完成（" + ((data && data.response_count) || 0)
+              + " 份回答），正在刷新报告…", "ok");
+            window.location.reload();
+          })
+          .catch(function (error) {
+            // 请求失败不代表运行锁已释放（如 409 或网络中断），重新读取后端状态。
+            if (error && error.run_id) {
+              setStatus(reviewStatus, "复盘失败：" + messageFor(error)
+                + "（运行编号 " + error.run_id + "，可在上方运行日志查看）", "error");
+            } else {
+              setStatus(reviewStatus, "复盘失败：" + messageFor(error), "error");
+            }
             return refreshActions();
           });
       });
