@@ -1,17 +1,35 @@
 {#
   项目工作台：GET /projects/{project_id}    （管理端）
 
-  正式路由传入项目详情 context；本页动态内容由 API 获取。
-  设计说明：project_id 从地址栏取，项目详情、运行日志等全部由 app.js 调真实 API 获取：
-      GET  /api/projects/{id}          → {project, plan, experiment, latest_report_meta, running_run_id}
-      GET  /api/projects/{id}/runs     → agent_runs 列表（不含工具）
-      GET  /api/runs/{run_id}          → run + tool_calls[{tool_name,status,started_at,finished_at,error_code,output_ref}]
+  A 的 main.py 传入的 context（真实字段，勿改；A 的测试断言恰好是这 5 个键）：
+    project             = {id, name, idea, target_users, skills, budget_cny,
+                           validation_goal, data_kind, created_at, status}
+    plan                = {target_customer, pain_points[], value_proposition,
+                           hypotheses[{id,statement,question_ids[]}],
+                           experiment_steps[], next_tasks[], landing, questions[]} | None
+    experiment          = {id, project_id, landing, questions, published_at,
+                           service_url, survey_url} | None
+    latest_report_meta  = {id, response_count, cutoff_response_id, created_at, stale} | None
+    running_run_id      = str | None
 
-  未接通的功能（A06/A07）一律 disabled 并写明原因，不显示任何假统计或假报告。
+  渲染分工：
+    - 服务端渲染首屏（项目信息、方案、草稿、分享链接、按钮可用性）——无 JS 也能读。
+    - 前端只负责三块**必须实时取数**的区域：工具运行日志、反馈统计、原始回答。
+      统计与原始回答走 A06 接口：
+        GET /api/experiments/{id}/statistics  → {experiment_id, response_count,
+                                                 cutoff_response_id, questions[]}
+        草稿返回 400 INVALID_STATE；实验不存在 404
+        GET /api/experiments/{id}/responses   → [{id, answers, created_at}]
+    - 生成方案 / 发布 成功后整页重载，不重复实现一套前端渲染，避免两套渲染结果不一致。
+    - A07 后端已实现，报告模板尚待 B 交付：复盘与报告下载保持禁用，不展示任何假数据。
 #}
 {% extends "base.html" %}
-{% block title %}项目工作台｜FirstOrder Lab{% endblock %}
+{% block title %}{{ project.name }}｜项目工作台{% endblock %}
 {% block body_class %}page-admin page-workspace{% endblock %}
+
+{% set STATUS_CN = {'draft': '草稿', 'planned': '已出方案', 'collecting': '收反馈中', 'reviewed': '已复盘'} %}
+{% set KIND_CN = {'real': '真实实验', 'test': '测试样例'} %}
+{% set TYPE_CN = {'single': '单选', 'multiple': '多选', 'text': '简答'} %}
 
 {% block nav %}
   <nav class="site-nav">
@@ -22,32 +40,64 @@
 {% endblock %}
 
 {% block content %}
+{# 交给 app.js：实时区域需要的 ID 与题干（统计接口不返回题干，只有题号与选项） #}
+<script>
+  window.__FO_WORKSPACE__ = {
+    projectId: {{ project.id | tojson }},
+    projectStatus: {{ project.status | tojson }},
+    experimentId: {{ (experiment.id if experiment else None) | tojson }},
+    published: {{ (true if (experiment and experiment.published_at) else false) | tojson }},
+    runningRunId: {{ running_run_id | tojson }},
+    questions: {{ (experiment.questions if experiment else []) | tojson }}
+  };
+</script>
+
 <section class="card">
-  <h1 data-testid="project-name">项目工作台</h1>
+  <h1 data-testid="project-name">{{ project.name }}</h1>
 
   <p class="muted">
-    状态 <span class="tag" data-testid="project-status">读取中…</span>
-    · 数据类型 <span class="tag" data-testid="data-kind">读取中…</span>
-    · <span data-testid="project-id" class="muted"></span>
+    状态 <span class="tag tag-{{ project.status }}" data-testid="project-status">{{ STATUS_CN.get(project.status, project.status) }}</span>
+    · 数据类型 <span class="tag tag-{{ project.data_kind }}" data-testid="data-kind">{{ KIND_CN.get(project.data_kind, project.data_kind) }}</span>
+    · <span class="mono" data-testid="project-id">{{ project.id }}</span>
   </p>
 
-  <p class="notice" data-testid="test-badge" hidden>
+  {% if project.data_kind == 'test' %}
+  <p class="notice notice-warn" data-testid="test-badge">
     本项目的回答是<strong>测试样例</strong>，不得当作真实用户反馈。
   </p>
+  {% endif %}
 
-  <p class="notice notice-warn" data-testid="running-badge" hidden>
-    Agent 任务执行中，请等待本次运行结束后再操作。
+  {% if running_run_id %}
+  <p class="notice notice-warn" data-testid="running-badge">
+    Agent 任务执行中（<span class="mono">{{ running_run_id }}</span>），本次结束前请勿重复触发。
   </p>
+  {% endif %}
 
   <div class="actions" data-testid="ws-actions">
-    <button type="button" class="button button-primary"
-            data-testid="plan-generate" disabled>生成验证方案与草稿</button>
-    <a class="button button-ghost" data-testid="draft-edit" hidden>编辑服务页与问卷</a>
-    <a class="button button-ghost" data-testid="draft-preview-service" hidden>预览服务页</a>
-    <a class="button button-ghost" data-testid="draft-preview-survey" hidden>预览问卷</a>
-    <button type="button" class="button button-primary"
-            data-testid="experiment-publish" hidden>发布实验</button>
+    <button type="button" class="button button-primary" data-testid="plan-generate"
+            {% if running_run_id or (experiment and experiment.published_at) %}disabled{% endif %}>
+      {% if experiment %}重新生成方案与草稿{% else %}生成验证方案与草稿{% endif %}
+    </button>
+
+    {% if experiment %}
+      <a class="button button-ghost" data-testid="draft-edit"
+         href="/experiments/{{ experiment.id }}/edit">{{ "查看已锁定实验" if experiment.published_at else "编辑服务页与问卷" }}</a>
+      <a class="button button-ghost" data-testid="draft-preview-service"
+         href="/experiments/{{ experiment.id }}/preview/service">预览服务页</a>
+      <a class="button button-ghost" data-testid="draft-preview-survey"
+         href="/experiments/{{ experiment.id }}/preview/survey">预览问卷</a>
+      {% if not experiment.published_at %}
+      <button type="button" class="button button-primary" data-testid="experiment-publish"
+              {% if running_run_id %}disabled{% endif %}>发布实验</button>
+      {% endif %}
+    {% endif %}
   </div>
+
+  {% if experiment and not experiment.published_at %}
+  <p class="muted" data-testid="publish-hint">
+    发布是单独的人工动作，不会被生成计划自动触发。发布前公开链接返回 404。
+  </p>
+  {% endif %}
 
   <p class="form-status" data-testid="ws-status" role="status" aria-live="polite"></p>
   <div class="field-errors" data-testid="field-errors" hidden></div>
@@ -56,38 +106,115 @@
 <section class="card">
   <h2>项目信息</h2>
   <dl class="service-meta" data-testid="project-meta">
-    <dt>读取中</dt><dd>正在获取项目详情…</dd>
+    <dt>想验证的想法</dt><dd>{{ project.idea }}</dd>
+    <dt>目标用户</dt><dd>{{ project.target_users }}</dd>
+    <dt>团队能力</dt><dd>{{ project.skills }}</dd>
+    <dt>预算（元）</dt><dd>{{ project.budget_cny }}</dd>
+    <dt>验证目标</dt><dd>{{ project.validation_goal }}</dd>
+    <dt>数据类型</dt><dd>{{ KIND_CN.get(project.data_kind, project.data_kind) }}</dd>
+    <dt>创建时间</dt>
+    <dd><time datetime="{{ project.created_at }}" data-utc="{{ project.created_at }}">{{ project.created_at }}</time>（北京时间）</dd>
   </dl>
 </section>
 
 <section class="card" data-testid="plan-card">
   <h2>验证方案</h2>
+  {% if plan %}
+  <div data-testid="plan-body">
+  <dl class="service-meta">
+    <dt>目标客户</dt><dd>{{ plan.target_customer }}</dd>
+  </dl>
+  <h3>痛点</h3>
+  <ul class="feature-list">
+    {% for item in plan.pain_points %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <h3>价值主张</h3>
+  <p>{{ plan.value_proposition }}</p>
+  <h3>待验证假设</h3>
+  <p class="notice">
+    下面 3 条是<strong>待验证假设</strong>，不是已证实结论；只有真实回答才能说明它们成立或不成立。
+  </p>
+  <ol data-testid="plan-hypotheses">
+    {% for hypothesis in plan.hypotheses %}
+    <li>{{ hypothesis.id }}　{{ hypothesis.statement }}
+      <span class="muted">（对应题号 {{ hypothesis.question_ids | join('、') }}）</span></li>
+    {% endfor %}
+  </ol>
+  <h3>执行步骤</h3>
+  <ol>{% for item in plan.experiment_steps %}<li>{{ item }}</li>{% endfor %}</ol>
+  <h3>下一步任务</h3>
+  <ul class="feature-list">{% for item in plan.next_tasks %}<li>{{ item }}</li>{% endfor %}</ul>
+  </div>
+  {% else %}
   <p class="muted" data-testid="plan-empty">
     还没有验证方案。点「生成验证方案与草稿」后，这里会显示目标客户、痛点、3 条待验证假设、执行步骤与下一步任务。
   </p>
-  <div data-testid="plan-body" hidden></div>
+  {% endif %}
 </section>
 
 <section class="card" data-testid="draft-card">
   <h2>实验草稿</h2>
+  {% if experiment %}
+  <div data-testid="draft-body">
+  <h3>{{ experiment.landing.title }}</h3>
+  <p>{{ experiment.landing.summary }}</p>
+  <ul class="feature-list">
+    {% for item in experiment.landing.features %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <p class="notice">{{ experiment.landing.disclaimer }}</p>
+
+  <h3>问卷题目（{{ experiment.questions | length }} 题）</h3>
+  <table class="data-table" data-testid="question-list">
+    <thead>
+      <tr><th scope="col">题号</th><th scope="col">题型</th><th scope="col">题干</th>
+          <th scope="col">必答</th><th scope="col">选项数</th></tr>
+    </thead>
+    <tbody>
+      {% for question in experiment.questions %}
+      <tr data-testid="question-{{ question.id }}">
+        <td class="mono">{{ question.id }}</td>
+        <td>{{ TYPE_CN.get(question.type, question.type) }}</td>
+        <td>{{ question.title }}</td>
+        <td>{{ '是' if question.required else '否' }}</td>
+        <td>{{ question.options | length }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="muted" data-testid="published-at">
+    {% if experiment.published_at %}
+      已于（北京时间）<time datetime="{{ experiment.published_at }}" data-utc="{{ experiment.published_at }}">{{ experiment.published_at }}</time> 发布，题目与文案已锁定。
+      如需改题请创建下一轮项目。
+    {% else %}
+      尚未发布：仅管理端可见，公开链接在发布前返回 404。
+    {% endif %}
+  </p>
+  </div>
+  {% else %}
   <p class="muted" data-testid="draft-empty">
     还没有实验草稿。生成方案时会同时创建服务页文案与问卷草稿。
   </p>
-  <div data-testid="draft-body" hidden></div>
+  {% endif %}
 </section>
 
-<section class="card" data-testid="links-card" hidden>
+<section class="card" data-testid="links-card">
   <h2>分享链接</h2>
-  <p class="muted">只有<strong>人工发布</strong>之后这两个链接才对访客可用；发布前访问会返回 404。</p>
+  {% if experiment and experiment.published_at %}
   <dl class="service-meta">
     <dt>服务展示页</dt>
-    <dd><span class="mono" data-testid="service-url">—</span>
+    <dd><span class="mono" data-testid="service-url">{{ experiment.service_url }}</span>
         <button type="button" class="button button-ghost" data-testid="copy-service-url">复制</button></dd>
     <dt>公开问卷</dt>
-    <dd><span class="mono" data-testid="survey-url">—</span>
+    <dd><span class="mono" data-testid="survey-url">{{ experiment.survey_url }}</span>
         <button type="button" class="button button-ghost" data-testid="copy-survey-url">复制</button></dd>
   </dl>
-  <p class="muted" data-testid="published-at"></p>
+  <p class="muted">链接由受控配置 PUBLIC_BASE_URL 生成，不信任请求 Host。</p>
+  {% else %}
+  <p class="muted" data-testid="links-empty">
+    还没有可分享的链接。完成人工发布后，这里会出现服务页与问卷地址。
+  </p>
+  {% endif %}
 </section>
 
 <section class="card">
@@ -96,25 +223,63 @@
     只显示数据库里真实发生的运行与工具调用；失败保留错误码，不预先渲染假成功时间线。
   </p>
   <div id="ws-logs" data-testid="run-log" data-rendered-by="js">
-    <p class="muted" data-testid="runs-empty">还没有运行记录。</p>
+    <p class="muted" data-testid="runs-empty">正在读取运行记录…</p>
   </div>
 </section>
 
 <section class="card" data-testid="statistics-card">
-  <h2>反馈统计与复盘</h2>
-  <p class="notice" data-testid="statistics-pending">
-    反馈统计尚未接入页面，暂不可用。复盘与报告入口也暂不可用。
-    接通前不显示统计数字或报告内容。
+  <h2>反馈统计</h2>
+  {% if not experiment %}
+  <p class="muted" data-testid="statistics-pending">
+    还没有实验，无法统计。先生成验证方案与草稿。
+  </p>
+  {% elif not experiment.published_at %}
+  <p class="muted" data-testid="statistics-pending">
+    实验尚未发布，统计接口返回 400（INVALID_STATE）。发布并收到真实回答后再看这里。
+  </p>
+  {% else %}
+  <p class="muted" data-testid="statistics-status" role="status" aria-live="polite">正在读取统计…</p>
+  <p class="muted">
+    <span data-testid="response-count">有效回答份数：读取中</span>
+    · <span data-testid="cutoff-response-id"></span>
+  </p>
+  <div data-testid="statistics-body"></div>
+  <p class="muted">
+    每题百分比的分母是<strong>该题有效作答份数</strong>，不是全部回答数；
+    多选题按该题有效作答份数计算，百分比总和可能超过 100%。
+    分母为 0 时显示「暂无数据」，不代表已经观察到零需求。
+  </p>
+  {% endif %}
+</section>
+
+<section class="card" data-testid="responses-card">
+  <h2>原始回答</h2>
+  {% if not experiment %}
+  <p class="muted" data-testid="responses-pending">还没有实验，没有回答可读取。</p>
+  {% else %}
+  <p class="muted">
+    按回答 ID 升序显示，只含回答编号、答案与时间；不显示提交编号，也不代表独立用户数。
   </p>
   <div class="actions">
-    <button type="button" class="button" data-testid="response-count" disabled
-            title="统计页面待接通">有效回答份数：待接通</button>
+    <button type="button" class="button" data-testid="responses-load">读取原始回答</button>
+    <span class="form-status" data-testid="responses-status" role="status" aria-live="polite"></span>
+  </div>
+  <div data-testid="responses-body"></div>
+  {% endif %}
+</section>
+
+<section class="card" data-testid="review-card">
+  <h2>复盘与报告</h2>
+  <p class="notice" data-testid="review-pending">
+    A07 复盘与报告后端已实现；report.html 尚待 B 交付，页面入口暂未接通。本区域在接通前不显示任何结论、数字或下载内容，避免出现假报告。
+  </p>
+  <div class="actions">
     <button type="button" class="button" data-testid="review-generate" disabled
             title="复盘页面待接通">生成复盘</button>
     <button type="button" class="button" data-testid="report-content" disabled
-            title="报告页面待接通">查看报告</button>
+            title="报告模板待交付">查看报告</button>
     <button type="button" class="button" data-testid="report-download" disabled
-            title="报告导出待接通">下载 Markdown</button>
+            title="报告下载入口待接通">下载 Markdown</button>
   </div>
 </section>
 {% endblock %}

@@ -61,8 +61,8 @@ def main() -> int:
     print("模板目录：%s" % TPL)
     print("=" * 92)
 
-    # 1) 不传 context 也要能渲染（A 只加路由、不准备 context 时仍可用）
-    for name in ("projects.html", "project_new.html", "workspace.html"):
+    # 工作台正式路由提供项目详情；空 context 只适用于列表兜底与新建页。
+    for name in ("projects.html", "project_new.html"):
         try:
             html = env.get_template(name).render()
             check("%s 无 context 也能渲染" % name, len(html) > 200, "%d 字节" % len(html))
@@ -101,19 +101,21 @@ def main() -> int:
     check("project_new 不把 placeholder 当已填值", "placeholder=" in html)
 
     # 4) 工作台接线
-    html = env.get_template("workspace.html").render()
+    html = env.get_template("workspace.html").render(
+        project=PROJECTS[0], plan=None,
+        experiment=dict(EXPERIMENT, published_at=None), latest_report_meta=None, running_run_id=None)
     for marker in ('data-testid="plan-generate"', 'data-testid="run-log"',
-                   'data-testid="experiment-publish"', 'data-testid="service-url"',
-                   'data-testid="survey-url"', 'data-testid="copy-service-url"',
+                   'data-testid="experiment-publish"', 'data-testid="links-empty"',
                    'data-testid="project-status"', 'data-testid="draft-edit"',
                    'data-testid="field-errors"'):
         check("workspace 含 %s" % marker, marker in html)
-    check("workspace 未接通的统计/复盘明确禁用",
+    check("workspace 复盘页面入口明确禁用",
           all(('data-testid="%s" disabled' % t) in html
-              for t in ("response-count", "review-generate", "report-content", "report-download")))
+              for t in ("review-generate", "report-content", "report-download")))
     check("workspace 不显示任何假统计数字",
           "response_count" not in html and "percentage" not in html)
-    check("workspace 声明统计尚未接入页面", "反馈统计尚未接入页面，暂不可用" in html)
+    check("workspace 草稿统计不展示数字且说明 INVALID_STATE", "INVALID_STATE" in html)
+    check("workspace 标注 A07 后端已实现与报告模板未交付", "后端已实现" in html and "report.html" in html)
 
     # 5) 既有页面回归（C 交付的 4 个）
     try:

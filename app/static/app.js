@@ -12,7 +12,7 @@
   "use strict";
 
   var SITE_HEADER = "FirstOrderLab";
-  var ADMIN_TIMEOUT_MS = 70000;   // 管理写入预算（总纲 §5：单次操作总预算 60 秒，留余量）
+  var ADMIN_TIMEOUT_MS = 90000;   // 工作流 80 秒，留出响应传输余量。
   var PUBLIC_TIMEOUT_MS = 30000;  // 公开提交预算
 
   /* ------------------------------------------------------------------ *
@@ -108,7 +108,7 @@
    */
   function request(method, url, payload, options) {
     var opts = options || {};
-    var limits = withTimeout(opts.timeout || PUBLIC_TIMEOUT_MS);
+    var limits = withTimeout(opts.timeout || (opts.admin ? ADMIN_TIMEOUT_MS : PUBLIC_TIMEOUT_MS));
     var headers = { Accept: "application/json" };
     var init = {
       method: method,
@@ -124,8 +124,8 @@
       headers["X-Requested-With"] = SITE_HEADER;
     }
     return fetch(url, init).then(function (response) {
-      limits.done();
       return response.text().then(function (text) {
+        limits.done();
         var body = null;
         if (text) {
           try { body = JSON.parse(text); } catch (error) { body = null; }
@@ -660,8 +660,219 @@
     return match ? decodeURIComponent(match[1]) : "";
   }
 
+  /* ---------------- 工作台（服务端渲染 + 三块实时区域） ----------------
+   * 首屏由 workspace.html 用 A 传来的 context 渲染；这里只负责必须实时取数的三块：
+   *   工具运行日志（/api/projects/{id}/runs + /api/runs/{id}）
+   *   反馈统计（/api/experiments/{id}/statistics，A06）
+   *   原始回答（/api/experiments/{id}/responses，A06）
+   * 生成方案与发布成功后整页重载，避免"服务端渲染 + 前端渲染"两套结果不一致。
+   */
+
+  function renderToolTable(tools) {
+    var table = document.createElement("table");
+    table.className = "run-tools";
+    var head = document.createElement("tr");
+    ["工具", "状态", "开始", "结束", "结果 / 错误"].forEach(function (label) {
+      head.appendChild(el("th", null, label));
+    });
+    table.appendChild(head);
+    tools.forEach(function (tool) {
+      var row = document.createElement("tr");
+      row.setAttribute("data-testid", "tool-" + tool.id);
+      row.appendChild(el("td", null, TOOL_CN[tool.tool_name] || tool.tool_name));
+      row.appendChild(el("td", "tool-status-" + tool.status, RUN_CN[tool.status] || tool.status));
+      row.appendChild(el("td", "mono", beijingTime(tool.started_at)));
+      row.appendChild(el("td", "mono", tool.finished_at ? beijingTime(tool.finished_at) : "—"));
+      var result = tool.error_code;
+      if (!result && tool.output_ref) {
+        if (tool.output_ref.experiment_id) {
+          result = "草稿 " + String(tool.output_ref.experiment_id).slice(0, 8) + " · "
+            + (tool.output_ref.question_count || "?") + " 题";
+        } else {
+          var parts = [];
+          if (tool.output_ref.model_call && tool.output_ref.model_call.model) {
+            parts.push(String(tool.output_ref.model_call.model));
+          }
+          if (tool.output_ref.hypothesis_count) { parts.push(tool.output_ref.hypothesis_count + " 条假设"); }
+          if (tool.output_ref.question_count) { parts.push(tool.output_ref.question_count + " 题"); }
+          result = parts.length ? parts.join(" · ") : "已记录";
+        }
+      }
+      row.appendChild(el("td", tool.error_code ? "tool-status-failed" : "mono", result || "—"));
+      table.appendChild(row);
+    });
+    return table;
+  }
+
+  function renderRuns(logs, runs) {
+    clearNode(logs);
+    logs.setAttribute("data-rendered-by", "js");
+    if (!runs || !runs.length) {
+      var empty = el("p", "muted", "还没有运行记录。");
+      empty.setAttribute("data-testid", "runs-empty");
+      logs.appendChild(empty);
+      return;
+    }
+    runs.forEach(function (run) {
+      var box = el("div", "run", null);
+      box.setAttribute("data-testid", "run-" + run.id);
+      var head = el("p", "run-head", null);
+      head.appendChild(el("span", "tag tag-" + run.status, RUN_CN[run.status] || run.status));
+      head.appendChild(document.createTextNode(
+        " · " + (run.action === "plan" ? "方案生成" : "反馈复盘")
+        + " · " + beijingTime(run.started_at)
+        + (run.finished_at ? " → " + beijingTime(run.finished_at) : "（进行中）")
+        + " · " + run.id));
+      box.appendChild(head);
+      if (run.error_code) {
+        box.appendChild(el("p", "notice notice-error",
+          run.error_code + (run.error_message ? "：" + run.error_message : "")));
+      }
+      var holder = el("p", "muted", "工具调用加载中…");
+      box.appendChild(holder);
+      logs.appendChild(box);
+
+      // 工具明细只存在于 GET /api/runs/{run_id}
+      request("GET", "/api/runs/" + encodeURIComponent(run.id), undefined, { admin: true })
+        .then(function (detail) {
+          var tools = (detail && detail.tool_calls) || [];
+          if (holder.parentNode === box) { box.removeChild(holder); }
+          if (!tools.length) {
+            box.appendChild(el("p", "muted", "本次运行没有记录工具调用。"));
+            return;
+          }
+          box.appendChild(renderToolTable(tools));
+        })
+        .catch(function () {
+          holder.textContent = "工具明细读取失败。";
+        });
+    });
+  }
+
+  /** 反馈统计（A06）。分母一律用"该题有效作答份数"，零分母显示暂无数据而不是 0%。 */
+  function renderStatistics(config) {
+    var body = byTestId("statistics-body");
+    var countNode = byTestId("response-count");
+    var cutoffNode = byTestId("cutoff-response-id");
+    var statusNode = byTestId("statistics-status");
+    if (!body) { return; }
+
+    if (!config.experimentId) {
+      setStatus(statusNode, "还没有实验，无法统计。", null);
+      return;
+    }
+    if (!config.published) {
+      setStatus(statusNode, "实验尚未发布，统计接口返回 400（INVALID_STATE）。", null);
+      return;
+    }
+
+    var titles = {};
+    (config.questions || []).forEach(function (question) { titles[question.id] = question.title; });
+
+    request("GET", "/api/experiments/" + encodeURIComponent(config.experimentId) + "/statistics",
+            undefined, { admin: true })
+      .then(function (stats) {
+        clearNode(body);
+        var total = stats.response_count || 0;
+        if (countNode) { countNode.textContent = "有效回答份数：" + total + " 份"; }
+        if (cutoffNode) {
+          cutoffNode.textContent = "统计快照截止回答编号：" + (stats.cutoff_response_id || 0);
+        }
+        setStatus(statusNode, total
+          ? "统计完成，共 " + total + " 份回答。"
+          : "目前还没有回答，所有题都显示「暂无数据」。", total ? "ok" : null);
+
+        (stats.questions || []).forEach(function (question) {
+          var box = el("div", "stat-question", null);
+          box.setAttribute("data-testid", "stat-" + question.id);
+          box.appendChild(el("h3", null,
+            (titles[question.id] || question.id) + "（有效作答 " + question.answered_count + " 份）"));
+
+          if (question.type === "text") {
+            if (!(question.texts || []).length) {
+              var none = el("p", "muted", "暂无数据（还没有人填写这道题）。");
+              none.setAttribute("data-testid", "stat-empty-" + question.id);
+              box.appendChild(none);
+            } else {
+              var list = el("ul", "feature-list", null);
+              question.texts.forEach(function (item) {
+                var li = el("li", null, item.text);
+                li.setAttribute("data-testid", "stat-text-" + question.id + "-" + item.response_id);
+                list.appendChild(li);
+              });
+              box.appendChild(list);
+            }
+          } else {
+            var table = document.createElement("table");
+            table.className = "data-table";
+            var head = document.createElement("tr");
+            ["选项", "计数", "百分比"].forEach(function (label) {
+              head.appendChild(el("th", null, label));
+            });
+            table.appendChild(head);
+            (question.options || []).forEach(function (option) {
+              var row = document.createElement("tr");
+              row.setAttribute("data-testid", "stat-option-" + question.id + "-" + option.id);
+              row.appendChild(el("td", null, option.label));
+              row.appendChild(el("td", null, option.count));
+              row.appendChild(el("td", null,
+                (option.percentage === null || option.percentage === undefined)
+                  ? "暂无数据"
+                  : Number(option.percentage).toFixed(2) + "%"));
+              table.appendChild(row);
+            });
+            box.appendChild(table);
+            box.appendChild(el("p", "muted",
+              "百分比分母为该题有效作答份数 " + question.answered_count + " 份。"));
+          }
+          body.appendChild(box);
+        });
+      })
+      .catch(function (error) {
+        setStatus(statusNode, "统计读取失败：" + messageFor(error), "error");
+      });
+  }
+
+  /** 原始回答（A06）：按需读取，只显示回答编号、答案与时间 */
+  function renderResponses(config) {
+    var body = byTestId("responses-body");
+    var button = byTestId("responses-load");
+    var status = byTestId("responses-status");
+    if (!body || !button || !config.experimentId) { return; }
+
+    button.addEventListener("click", function () {
+      button.disabled = true;
+      setStatus(status, "正在读取…", null);
+      request("GET", "/api/experiments/" + encodeURIComponent(config.experimentId) + "/responses",
+              undefined, { admin: true })
+        .then(function (rows) {
+          clearNode(body);
+          var list = rows || [];
+          setStatus(status, list.length ? "共 " + list.length + " 份回答。" : "还没有回答。",
+                    list.length ? "ok" : null);
+          list.forEach(function (row) {
+            var box = el("div", "run", null);
+            box.setAttribute("data-testid", "response-" + row.id);
+            box.appendChild(el("p", "run-head",
+              "回答 #" + row.id + " · " + beijingTime(row.created_at) + "（北京时间）"));
+            var dl = el("dl", "service-meta", null);
+            Object.keys(row.answers || {}).forEach(function (key) {
+              dl.appendChild(el("dt", null, key));
+              var value = row.answers[key];
+              dl.appendChild(el("dd", null, Array.isArray(value) ? value.join("、") : value));
+            });
+            box.appendChild(dl);
+            body.appendChild(box);
+          });
+        })
+        .catch(function (error) { setStatus(status, "读取失败：" + messageFor(error), "error"); })
+        .then(function () { button.disabled = false; });
+    });
+  }
+
   function initWorkspacePage(root) {
-    var projectId = projectIdFromLocation();
+    var config = window.__FO_WORKSPACE__ || {};
+    var projectId = config.projectId || projectIdFromLocation();
     if (!projectId) { return; }
 
     var statusBox = byTestId("ws-status");
@@ -669,278 +880,31 @@
     var planButton = byTestId("plan-generate");
     var publishButton = byTestId("experiment-publish");
     var logs = byTestId("run-log");
-    var current = null;
 
     function say(text, kind) { setStatus(statusBox, text, kind); }
 
-    function renderPlan(plan) {
-      var empty = byTestId("plan-empty");
-      var body = byTestId("plan-body");
-      if (!body) { return; }
-      if (!plan) {
-        if (empty) { empty.hidden = false; }
-        body.hidden = true;
-        clearNode(body);
-        return;
-      }
-      if (empty) { empty.hidden = true; }
-      clearNode(body);
-      body.hidden = false;
-
-      definitionRow(body.appendChild(el("dl", "service-meta")), "目标客户", plan.target_customer);
-      var pains = el("ul", "feature-list");
-      (plan.pain_points || []).forEach(function (item) { pains.appendChild(el("li", null, item)); });
-      body.appendChild(el("h3", null, "痛点"));
-      body.appendChild(pains);
-
-      body.appendChild(el("h3", null, "价值主张"));
-      body.appendChild(el("p", null, plan.value_proposition));
-
-      body.appendChild(el("h3", null, "待验证假设（3 条，尚未证实）"));
-      body.appendChild(el("p", "notice", "下面是待验证假设，不是已证实结论；只有真实回答才能说明它们成立或不成立。"));
-      var list = el("ol", null, null);
-      (plan.hypotheses || []).forEach(function (hypothesis) {
-        var refs = (hypothesis.question_ids || []).join("、");
-        list.appendChild(el("li", null, hypothesis.id + "　" + hypothesis.statement + "（对应题号 " + refs + "）"));
-      });
-      body.appendChild(list);
-
-      body.appendChild(el("h3", null, "执行步骤"));
-      var steps = el("ol", null, null);
-      (plan.experiment_steps || []).forEach(function (item) { steps.appendChild(el("li", null, item)); });
-      body.appendChild(steps);
-
-      body.appendChild(el("h3", null, "下一步任务"));
-      var tasks = el("ul", "feature-list");
-      (plan.next_tasks || []).forEach(function (item) { tasks.appendChild(el("li", null, item)); });
-      body.appendChild(tasks);
-    }
-
-    function renderExperiment(experiment) {
-      var empty = byTestId("draft-empty");
-      var body = byTestId("draft-body");
-      var links = byTestId("links-card");
-      var editLink = byTestId("draft-edit");
-      var previewService = byTestId("draft-preview-service");
-      var previewSurvey = byTestId("draft-preview-survey");
-      if (!body) { return; }
-      if (!experiment) {
-        if (empty) { empty.hidden = false; }
-        body.hidden = true;
-        clearNode(body);
-        if (links) { links.hidden = true; }
-        [editLink, previewService, previewSurvey, publishButton].forEach(function (node) {
-          if (node) { node.hidden = true; }
-        });
-        return;
-      }
-      if (empty) { empty.hidden = true; }
-      clearNode(body);
-      body.hidden = false;
-
-      var landing = experiment.landing || {};
-      body.appendChild(el("h3", null, landing.title || "（未命名服务页）"));
-      body.appendChild(el("p", null, landing.summary || ""));
-      var features = el("ul", "feature-list");
-      (landing.features || []).forEach(function (item) { features.appendChild(el("li", null, item)); });
-      body.appendChild(features);
-      if (landing.disclaimer) {
-        body.appendChild(el("p", "notice", landing.disclaimer));
-      }
-
-      body.appendChild(el("h3", null, "问卷题目（" + (experiment.questions || []).length + " 题）"));
-      var table = document.createElement("table");
-      table.className = "data-table";
-      table.setAttribute("data-testid", "question-list");
-      var head = document.createElement("tr");
-      ["题号", "题型", "题干", "必答", "选项数"].forEach(function (label) {
-        head.appendChild(el("th", null, label));
-      });
-      table.appendChild(head);
-      (experiment.questions || []).forEach(function (question) {
-        var row = document.createElement("tr");
-        row.setAttribute("data-testid", "question-" + question.id);
-        row.appendChild(el("td", null, question.id));
-        row.appendChild(el("td", null, { single: "单选", multiple: "多选", text: "简答" }[question.type] || question.type));
-        row.appendChild(el("td", null, question.title));
-        row.appendChild(el("td", null, question.required ? "是" : "否"));
-        row.appendChild(el("td", null, (question.options || []).length));
-        table.appendChild(row);
-      });
-      body.appendChild(table);
-
-      // 入口链接
-      var base = "/experiments/" + encodeURIComponent(experiment.id);
-      if (editLink) {
-        editLink.setAttribute("href", base + "/edit");
-        editLink.textContent = experiment.published_at ? "查看已发布内容（只读）" : "编辑服务页与问卷";
-        editLink.hidden = false;
-      }
-      if (previewService) { previewService.setAttribute("href", base + "/preview/service"); previewService.hidden = false; }
-      if (previewSurvey) { previewSurvey.setAttribute("href", base + "/preview/survey"); previewSurvey.hidden = false; }
-
-      // 分享链接：只有已发布才有
-      var serviceUrl = byTestId("service-url");
-      var surveyUrl = byTestId("survey-url");
-      var publishedAt = byTestId("published-at");
-      if (links) {
-        links.hidden = !experiment.published_at;
-        if (serviceUrl) { serviceUrl.textContent = experiment.service_url || "—"; }
-        if (surveyUrl) { surveyUrl.textContent = experiment.survey_url || "—"; }
-        if (publishedAt) {
-          publishedAt.textContent = experiment.published_at
-            ? "发布于（北京时间）" + beijingTime(experiment.published_at) + "，已锁定。"
-            : "";
-        }
-      }
-      if (publishButton) {
-        publishButton.hidden = Boolean(experiment.published_at);
-      }
-    }
-
-    function renderDetail(detail) {
-      current = detail;
-      var project = detail.project || {};
-      var nameNode = byTestId("project-name");
-      if (nameNode) { nameNode.textContent = project.name || "项目工作台"; }
-
-      var statusNode = byTestId("project-status");
-      if (statusNode) {
-        statusNode.textContent = STATUS_CN[project.status] || project.status || "—";
-        statusNode.className = "tag tag-" + (project.status || "draft");
-      }
-      var kindNode = byTestId("data-kind");
-      if (kindNode) {
-        kindNode.textContent = KIND_CN[project.data_kind] || project.data_kind || "—";
-        kindNode.className = "tag tag-" + (project.data_kind || "real");
-      }
-      var idNode = byTestId("project-id");
-      if (idNode) { idNode.textContent = project.id || ""; }
-      var testBadge = byTestId("test-badge");
-      if (testBadge) { testBadge.hidden = project.data_kind !== "test"; }
-
-      var meta = byTestId("project-meta");
-      if (meta) {
-        clearNode(meta);
-        definitionRow(meta, "项目名称", project.name);
-        definitionRow(meta, "想验证的想法", project.idea);
-        definitionRow(meta, "目标用户", project.target_users);
-        definitionRow(meta, "团队能力", project.skills);
-        definitionRow(meta, "预算（元）", project.budget_cny);
-        definitionRow(meta, "验证目标", project.validation_goal);
-        definitionRow(meta, "数据类型", KIND_CN[project.data_kind] || project.data_kind);
-        definitionRow(meta, "创建时间", beijingTime(project.created_at));
-      }
-
-      renderPlan(detail.plan);
-      renderExperiment(detail.experiment);
-
-      var running = Boolean(detail.running_run_id);
-      var runningBadge = byTestId("running-badge");
-      if (runningBadge) { runningBadge.hidden = !running; }
-      if (planButton) {
-        planButton.textContent = detail.experiment ? "重新生成方案与草稿" : "生成验证方案与草稿";
-        planButton.disabled = running || Boolean(detail.experiment && detail.experiment.published_at);
-      }
-      if (publishButton) { publishButton.disabled = running || Boolean(detail.experiment && detail.experiment.published_at); }
-    }
-
-    function renderToolTable(tools) {
-      var table = document.createElement("table");
-      table.className = "run-tools";
-      var head = document.createElement("tr");
-      ["工具", "状态", "开始", "结束", "结果 / 错误"].forEach(function (label) {
-        head.appendChild(el("th", null, label));
-      });
-      table.appendChild(head);
-      tools.forEach(function (tool) {
-        var row = document.createElement("tr");
-        row.setAttribute("data-testid", "tool-" + tool.id);
-        row.appendChild(el("td", null, TOOL_CN[tool.tool_name] || tool.tool_name));
-        row.appendChild(el("td", "tool-status-" + tool.status, RUN_CN[tool.status] || tool.status));
-        row.appendChild(el("td", "mono", beijingTime(tool.started_at)));
-        row.appendChild(el("td", "mono", tool.finished_at ? beijingTime(tool.finished_at) : "—"));
-        var result = tool.error_code;
-        if (!result && tool.output_ref) {
-          if (tool.output_ref.experiment_id) {
-            result = "草稿 " + String(tool.output_ref.experiment_id).slice(0, 8) + " · "
-              + (tool.output_ref.questions || "?") + " 题";
-          } else {
-            var parts = [];
-            if (tool.output_ref.model_call && tool.output_ref.model_call.model) {
-              parts.push(String(tool.output_ref.model_call.model));
-            }
-            if (tool.output_ref.hypotheses) { parts.push(tool.output_ref.hypotheses + " 条假设"); }
-            if (tool.output_ref.questions) { parts.push(tool.output_ref.questions + " 题"); }
-            result = parts.length ? parts.join(" · ") : "已记录";
-          }
-        }
-        row.appendChild(el("td", tool.error_code ? "tool-status-failed" : "mono", result || "—"));
-        table.appendChild(row);
-      });
-      return table;
-    }
-
-    function renderRuns(runs) {
-      if (!logs) { return; }
-      clearNode(logs);
-      logs.setAttribute("data-rendered-by", "js");
-      if (!runs || !runs.length) {
-        logs.appendChild(el("p", "muted", "还没有运行记录。"));
-        return;
-      }
-      runs.forEach(function (run) {
-        var box = el("div", "run", null);
-        box.setAttribute("data-testid", "run-" + run.id);
-        var head = el("p", "run-head", null);
-        head.appendChild(el("span", "tag", RUN_CN[run.status] || run.status));
-        head.appendChild(document.createTextNode(
-          " · " + (run.action === "plan" ? "方案生成" : "反馈复盘")
-          + " · " + beijingTime(run.started_at)
-          + (run.finished_at ? " → " + beijingTime(run.finished_at) : "（进行中）")
-          + " · " + run.id));
-        box.appendChild(head);
-        if (run.error_code) {
-          box.appendChild(el("p", "notice notice-error",
-            run.error_code + (run.error_message ? "：" + run.error_message : "")));
-        }
-        box.appendChild(el("p", "muted", "工具调用加载中…"));
-        logs.appendChild(box);
-
-        // 工具明细只存在于 GET /api/runs/{run_id}
-        request("GET", "/api/runs/" + encodeURIComponent(run.id), undefined, { admin: true })
-          .then(function (detail) {
-            var holder = box.lastChild;
-            if (holder && holder.parentNode === box) { box.removeChild(holder); }
-            var tools = (detail && detail.tool_calls) || [];
-            if (!tools.length) {
-              box.appendChild(el("p", "muted", "本次运行没有记录工具调用。"));
-              return;
-            }
-            box.appendChild(renderToolTable(tools));
-          })
-          .catch(function () {
-            var holder = box.lastChild;
-            if (holder && holder.parentNode === box) { holder.textContent = "工具明细读取失败。"; }
-          });
-      });
-    }
-
-    function load() {
+    function refreshActions() {
       return request("GET", "/api/projects/" + encodeURIComponent(projectId), undefined, { admin: true })
-        .then(renderDetail);
-    }
-
-    function loadRuns() {
-      return request("GET", "/api/projects/" + encodeURIComponent(projectId) + "/runs",
-                     undefined, { admin: true })
-        .then(renderRuns);
+        .then(function (detail) {
+          var locked = Boolean(detail.running_run_id || (detail.experiment && detail.experiment.published_at));
+          if (planButton) { planButton.disabled = locked; }
+          if (publishButton) {
+            publishButton.disabled = locked;
+            publishButton.hidden = Boolean(detail.experiment && detail.experiment.published_at);
+          }
+          return request("GET", "/api/projects/" + encodeURIComponent(projectId) + "/runs", undefined, { admin: true });
+        })
+        .then(function (runs) { if (logs) { renderRuns(logs, runs); } })
+        .catch(function () {
+          if (planButton) { planButton.disabled = true; }
+          if (publishButton) { publishButton.disabled = true; }
+        });
     }
 
     if (planButton) {
       planButton.addEventListener("click", function () {
-        var regenerate = Boolean(current && current.experiment);
-        if (regenerate && !window.confirm("重新生成会整体替换当前未发布的草稿（服务页文案与问卷），确定继续？")) {
+        if (config.experimentId &&
+            !window.confirm("重新生成会整体替换当前未发布的草稿（服务页文案与问卷），确定继续？")) {
           return;
         }
         planButton.disabled = true;
@@ -948,33 +912,29 @@
         showFieldErrors(errorBox, null);
         request("POST", "/api/projects/" + encodeURIComponent(projectId) + "/plan", {},
                 { admin: true, timeout: ADMIN_TIMEOUT_MS })
-          .then(function () { say("生成完成，正在刷新数据…", "ok"); return load(); })
-          .then(loadRuns)
+          .then(function () { window.location.reload(); })
           .catch(function (error) {
             showFieldErrors(errorBox, error);
             say("生成失败：" + messageFor(error), "error");
-            // 失败也刷新运行状态，避免把并发任务或已发布项目重新开放操作。
-            return load().then(loadRuns).catch(function () { planButton.disabled = true; });
+            return refreshActions();
           });
       });
     }
 
     if (publishButton) {
       publishButton.addEventListener("click", function () {
-        var experiment = current && current.experiment;
-        if (!experiment) { return; }
+        if (!config.experimentId) { return; }
         if (!window.confirm("发布后服务页文案与问卷题目立即锁定，公开链接对访客可用。"
           + "发布不会被生成计划自动触发，确定现在发布？")) { return; }
         publishButton.disabled = true;
         say("正在发布…", null);
-        request("POST", "/api/experiments/" + encodeURIComponent(experiment.id) + "/publish", {},
+        request("POST", "/api/experiments/" + encodeURIComponent(config.experimentId) + "/publish", {},
                 { admin: true, timeout: ADMIN_TIMEOUT_MS })
-          .then(function (data) {
-            say("已发布。公开问卷：" + (data.survey_url || "—"), "ok");
-          })
-          .catch(function (error) { say("发布失败：" + messageFor(error), "error"); })
-          .then(function () { return load(); })
-          .catch(function () { publishButton.disabled = true; });
+          .then(function () { window.location.reload(); })
+          .catch(function (error) {
+            say("发布失败：" + messageFor(error), "error");
+            return refreshActions();
+          });
       });
     }
 
@@ -983,8 +943,8 @@
       var target = byTestId(kind + "-url");
       if (!button || !target) { return; }
       button.addEventListener("click", function () {
-        var url = target.textContent || "";
-        if (!url || url === "—") { say("还没有可复制的链接，先完成人工发布。", "error"); return; }
+        var url = (target.textContent || "").trim();
+        if (!url) { say("还没有可复制的链接，先完成人工发布。", "error"); return; }
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(url).then(function () { say("链接已复制。", "ok"); },
             function () { say("复制失败，请手动选中链接复制。", "error"); });
@@ -995,9 +955,19 @@
     });
 
     localizeTimes(root);
-    load()
-      .then(loadRuns)
-      .catch(function (error) { say("读取项目详情失败：" + messageFor(error), "error"); });
+
+    if (logs) {
+      request("GET", "/api/projects/" + encodeURIComponent(projectId) + "/runs",
+              undefined, { admin: true })
+        .then(function (runs) { renderRuns(logs, runs); })
+        .catch(function (error) {
+          clearNode(logs);
+          logs.appendChild(el("p", "muted", "运行日志读取失败：" + messageFor(error)));
+        });
+    }
+
+    renderStatistics(config);
+    renderResponses(config);
   }
 
   /* ------------------------------------------------------------------ *

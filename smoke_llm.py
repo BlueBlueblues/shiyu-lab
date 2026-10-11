@@ -17,7 +17,7 @@ if not base_url.startswith("https://"):
 if not api_key or not model or "REPLACE_ME" in (api_key, model):
     raise ValueError("请先配置真实的 API Key 和模型 ID")
 
-print("开始测试书生·端砚 API...")
+print("开始测试当前模型 API...")
 print("模型:", model)
 
 start = time.perf_counter()
@@ -39,7 +39,7 @@ try:
             ],
             "stream": False
         },
-        timeout=40.0
+        timeout=60.0
     )
 
     print("HTTP 状态码:", response.status_code)

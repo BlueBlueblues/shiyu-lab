@@ -1,0 +1,41 @@
+{
+  "started_at": "2026-10-11T02:06:12.723026+00:00",
+  "request_url": "https://www.cctq.ai/v1/chat/completions",
+  "model": "gpt-6.1-sol",
+  "stream": false,
+  "total_timeout_seconds": 120.0,
+  "automatic_retries": 0,
+  "trust_env": true,
+  "database_access": false,
+  "kind": "plan",
+  "source_evidence": "D:\\AI+比赛\\firstorder-lab\\docs\\model-verification\\20261011T015757Z-a015c852\\result.json",
+  "data_kind": "test",
+  "system_prompt_chars": 1664,
+  "system_prompt_sha256": "758c9b67ed1e742a901684d7aa5f1c456255b065630af3c27f31d57f860c8fa6",
+  "payload_sha256": "b363293253ef65f17b75726d35ebfe73fdb6135773cb9282ac6058591218c52c",
+  "http_status": 200,
+  "success": true,
+  "request_count": 1,
+  "response_headers_after_seconds": 35.828,
+  "checks": {
+    "content_nonempty_string": true,
+    "not_truncated_or_filtered": true,
+    "plan_contract": true
+  },
+  "token_usage": {
+    "prompt_tokens": 1017,
+    "completion_tokens": 964,
+    "total_tokens": 1981,
+    "completion_tokens_details": {
+      "reasoning_tokens": 173
+    }
+  },
+  "content_chars": 1702,
+  "content_sha256": "f406ce5e7cb6a0562441f3d96d2c4027f465bab2c3bd818d58906d0be20fa74f",
+  "content": null,
+  "hypothesis_count": 3,
+  "question_count": 4,
+  "finish_reason": "stop",
+  "duration_seconds": 35.843,
+  "finished_at": "2026-10-11T02:06:48.554007+00:00"
+}

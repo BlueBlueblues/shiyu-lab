@@ -1,6 +1,8 @@
 import json
 import logging
 import re
+import socket
+import ssl
 from dataclasses import replace
 from datetime import datetime
 from unittest.mock import Mock
@@ -22,6 +24,11 @@ from app.services.planning import PLAN_PROMPT, generate_plan, parse_plan
     "budget_cny 是创业者可投入预算，不是服务售价或客户愿意支付的价格。不得直接把项目投入预算当成客户愿意支付的价格；价格题应独立探索可接受价格，候选价格或区间仅是待验证设定，不是已知支付意愿。",
     "问卷避免诱导性表达，不预设用户有需求或愿意购买；允许用户回答“不需要”“不愿意”“不确定”等，并提供与题意相符的否定或不确定选项。",
     "当输入信息不足时，不得编造市场规模、真实订单和用户调研结果；将缺失信息或待验证假设明确说明，并在现有 next_tasks 中列出需人工补充或核对的内容。",
+    "价格与购买意愿必须分开提问；购买意愿使用独立单选题，至少包含“愿意”“不愿意”“不确定”三个独立选项",
+    "experiment_steps 和 next_tasks 中每项行动必须包含可核验的量化完成标准，明确数量及期限；比例阈值须明确分母。",
+    "必须标为“待确认建议”，并安排人工确认，不冒充用户已约定或已预先设定。",
+    "对回答者意图的描述必须有原始回答依据",
+    "data_kind=test 中的回答只能描述为受控测试文本，不能声称来自真实回答者。",
 ])
 def test_prompt_preserves_content_quality_requirements(requirement):
     # 仅检查提示词约束未丢失，不据此评估模型输出的语义质量。
@@ -95,7 +102,7 @@ def test_valid_plan_request_metadata_and_secret_free_logs(settings, project, pla
     post.assert_called_once()
     args, kwargs = post.call_args
     assert args == (settings.llm_base_url + "/chat/completions",)
-    assert kwargs["timeout"] == 40.0 and kwargs["follow_redirects"] is False
+    assert kwargs["timeout"] == 60.0 and kwargs["follow_redirects"] is False
     assert kwargs["headers"]["Authorization"] == "Bearer a03-test-key"
     assert set(kwargs["json"]) == {"model", "messages", "stream"}
     assert kwargs["json"]["stream"] is False
@@ -160,7 +167,7 @@ def test_cross_field_and_schema_errors(settings, project, plan_data, post, path,
     post.assert_called_once()
 
 
-@pytest.mark.parametrize("status", [301, 400, 401, 429, 500, 503])
+@pytest.mark.parametrize("status", [301, 400, 401, 429, 500, 502, 503])
 def test_upstream_status_redacted_no_retry(settings, project, post, caplog, status):
     post.return_value = response({"error": {"message": "private a03-test-key a03-test-password"}}, status)
     caplog.set_level(logging.INFO, logger="app.services.llm_client")
@@ -170,6 +177,9 @@ def test_upstream_status_redacted_no_retry(settings, project, post, caplog, stat
     assert error.code == "LLM_UPSTREAM_ERROR" and error.status_code == 502
     assert error.call_info.http_status == status and error.call_info.success is False
     assert error.call_info.error_code == error.code
+    assert error.call_info.stage == "http_status"
+    assert error.call_info.failure_kind == "http_status"
+    assert error.call_info.exception_type == "HTTPStatusError"
     assert "a03-test-key" not in str(error) + caplog.text
     assert "a03-test-password" not in str(error) + caplog.text
     assert "private" not in str(error) + caplog.text
@@ -184,6 +194,10 @@ def test_upstream_status_redacted_no_retry(settings, project, post, caplog, stat
     (httpx.PoolTimeout("private a03-test-key"), "LLM_TIMEOUT"),
     (httpx.ConnectError("private a03-test-key"), "LLM_UPSTREAM_ERROR"),
     (httpx.RemoteProtocolError("private a03-test-key"), "LLM_UPSTREAM_ERROR"),
+    (httpx.ReadError("private a03-test-key"), "LLM_UPSTREAM_ERROR"),
+    (httpx.WriteError("private a03-test-key"), "LLM_UPSTREAM_ERROR"),
+    (httpx.ProxyError("private a03-test-key"), "LLM_UPSTREAM_ERROR"),
+    (httpx.DecodingError("private a03-test-key"), "LLM_UPSTREAM_ERROR"),
 ])
 def test_network_errors_and_timeouts(settings, project, post, caplog, exception, code):
     post.side_effect = exception
@@ -195,8 +209,96 @@ def test_network_errors_and_timeouts(settings, project, post, caplog, exception,
     assert error.status_code == (504 if code == "LLM_TIMEOUT" else 502)
     assert error.call_info.token_usage is None and error.call_info.http_status is None
     assert error.call_info.success is False and error.call_info.duration_seconds >= 0
+    assert error.call_info.stage == "http_request"
+    assert error.call_info.exception_type == type(exception).__name__
+    expected_kind = "timeout" if code == "LLM_TIMEOUT" else (
+        "response_decoding" if isinstance(exception, httpx.DecodingError) else "transport")
+    assert error.call_info.failure_kind == expected_kind
     assert "private" not in str(error) + caplog.text
     assert "a03-test-key" not in str(error) + caplog.text
+    post.assert_called_once()
+
+
+@pytest.mark.parametrize("cause,kind", [
+    (ssl.SSLCertVerificationError("private a03-test-key"), "tls"),
+    (ssl.SSLError("private a03-test-key"), "tls"),
+    (socket.gaierror("private a03-test-key"), "dns"),
+    (ConnectionResetError("private a03-test-key"), "transport"),
+])
+def test_transport_cause_types_are_classified_without_messages(settings, post, caplog, cause, kind):
+    failure = httpx.ConnectError("private Authorization Bearer a03-test-key")
+    failure.__cause__ = ConnectionError("private request body")
+    failure.__cause__.__cause__ = cause
+    post.side_effect = failure
+    caplog.set_level(logging.INFO, logger="app.services.llm_client")
+    with pytest.raises(LLMError) as caught:
+        call_model("private system prompt", {"private": "request body"}, settings)
+    info = caught.value.call_info
+    assert caught.value.code == "LLM_UPSTREAM_ERROR" and caught.value.status_code == 502
+    assert info.exception_type == "ConnectError" and info.failure_kind == kind
+    assert info.cause_types == ["ConnectionError", type(cause).__name__]
+    assert info.stage == "http_request" and info.http_status is None
+    assert info.duration_seconds >= 0
+    assert all(secret not in caplog.text + str(caught.value)
+               for secret in ("private", "Authorization", "Bearer", "a03-test-key", "request body"))
+    metadata = json.loads(caplog.records[-1].message.split(" ", 1)[1])
+    assert metadata["exception_type"] == "ConnectError" and metadata["failure_kind"] == kind
+    post.assert_called_once()
+
+
+def test_diagnostic_cause_chain_is_bounded(settings, post):
+    failure = httpx.ConnectError("private")
+    failure.__cause__ = failure
+    post.side_effect = failure
+    with pytest.raises(LLMError) as caught:
+        call_model("test", {}, settings)
+    assert caught.value.call_info.cause_types == ["ConnectError"] * 5
+    post.assert_called_once()
+
+
+def test_body_read_failure_can_hide_already_received_http_status(settings, monkeypatch, caplog):
+    """The buffered HTTP helper raises before returning even if headers arrived."""
+    requests = []
+
+    class BrokenBody(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b'{"private":'
+            raise httpx.ReadError("private a03-test-key")
+
+    def serve(request):
+        requests.append(request)
+        return httpx.Response(200, stream=BrokenBody())
+
+    caplog.set_level(logging.INFO, logger="app.services.llm_client")
+    with httpx.Client(transport=httpx.MockTransport(serve)) as client:
+        monkeypatch.setattr(httpx, "post", client.post)
+        with pytest.raises(LLMError) as caught:
+            call_model("test", {}, settings)
+    info = caught.value.call_info
+    assert caught.value.code == "LLM_UPSTREAM_ERROR" and caught.value.status_code == 502
+    assert info.http_status is None and info.stage == "http_request"
+    assert info.exception_type == "ReadError" and info.failure_kind == "transport"
+    assert len(requests) == 1
+    assert "private" not in caplog.text and "a03-test-key" not in caplog.text
+
+
+@pytest.mark.parametrize("upstream,kind,stage,exception_type,code,status", [
+    (response(raw=b"private not JSON"), "response_json", "response_json", "JSONDecodeError", "LLM_OUTPUT_INVALID", 200),
+    (response(raw=b"\xff"), "response_json", "response_json", "UnicodeDecodeError", "LLM_OUTPUT_INVALID", 200),
+    (response(raw=b"private not JSON", status=503), "http_status", "http_status", "HTTPStatusError", "LLM_UPSTREAM_ERROR", 503),
+    (response({"choices": []}), "chat_response", "chat_response", "IndexError", "LLM_OUTPUT_INVALID", 200),
+    (response({"error": "private failure"}), "upstream_error_payload", "chat_response", None, "LLM_UPSTREAM_ERROR", 200),
+])
+def test_response_failures_keep_upstream_status_and_error_contract(settings, post, caplog, upstream, kind, stage, exception_type, code, status):
+    post.return_value = upstream
+    caplog.set_level(logging.INFO, logger="app.services.llm_client")
+    with pytest.raises(LLMError) as caught:
+        call_model("test", {}, settings)
+    info = caught.value.call_info
+    assert caught.value.code == code and caught.value.status_code == 502
+    assert info.http_status == status and info.failure_kind == kind
+    assert info.stage == stage and info.exception_type == exception_type
+    assert "private" not in caplog.text + str(caught.value)
     post.assert_called_once()
 
 

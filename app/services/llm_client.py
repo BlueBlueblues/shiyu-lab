@@ -1,5 +1,7 @@
 import json
 import logging
+import socket
+import ssl
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -25,6 +27,10 @@ class CallInfo:
     http_status: int | None = None
     token_usage: dict | None = None
     error_code: str | None = None
+    stage: str = "http_request"
+    failure_kind: str | None = None
+    exception_type: str | None = None
+    cause_types: list[str] = field(default_factory=list)
 
 
 class LLMError(Exception):
@@ -66,6 +72,23 @@ def _token_usage(value) -> dict | None:
     return usage or None
 
 
+def _record_failure(info: CallInfo, error: Exception, kind: str) -> None:
+    info.failure_kind = kind
+    info.exception_type = type(error).__name__
+    # 只保存类型，不保存可能含凭据、URL 或正文的异常字符串。
+    cause = error
+    for _ in range(5):
+        if kind == "transport":
+            if isinstance(cause, ssl.SSLError):
+                info.failure_kind = "tls"
+            elif isinstance(cause, socket.gaierror):
+                info.failure_kind = "dns"
+        cause = cause.__cause__ or (cause.__context__ if not cause.__suppress_context__ else None)
+        if cause is None:
+            break
+        info.cause_types.append(type(cause).__name__)
+
+
 def call_model(system_prompt: str, data: dict, settings: Settings) -> ModelReply:
     """同步 HTTP 适配；success 仅表示 HTTP 和 Chat 响应格式成功，不代表计划校验成功。"""
     messages = [
@@ -79,17 +102,27 @@ def call_model(system_prompt: str, data: dict, settings: Settings) -> ModelReply
             settings.llm_base_url.rstrip("/") + "/chat/completions",
             headers={"Authorization": "Bearer " + settings.llm_api_key.get_secret_value()},
             json={"model": settings.llm_model, "messages": messages, "stream": False},
-            timeout=40.0, follow_redirects=False,
+            timeout=60.0, follow_redirects=False,
         )
         info.http_status = response.status_code
+        info.stage = "response_json"
+        parse_error = None
         try:
             body = response.json()
-        except ValueError:
+        except ValueError as error:
+            parse_error = error
             body = None
         if isinstance(body, dict):
             info.token_usage = _token_usage(body.get("usage"))
+        info.stage = "http_status"
         response.raise_for_status()
+        if parse_error is not None:
+            info.stage = "response_json"
+            _record_failure(info, parse_error, "response_json")
+            raise LLMError("LLM_OUTPUT_INVALID", info) from None
+        info.stage = "chat_response"
         if isinstance(body, dict) and body.get("error"):
+            info.failure_kind = "upstream_error_payload"
             raise LLMError("LLM_UPSTREAM_ERROR", info)
         try:
             choice = body["choices"][0]
@@ -98,14 +131,24 @@ def call_model(system_prompt: str, data: dict, settings: Settings) -> ModelReply
                 raise ValueError
             if choice.get("finish_reason") in {"length", "content_filter"}:
                 raise ValueError
-        except (KeyError, IndexError, TypeError, ValueError):
+        except (KeyError, IndexError, TypeError, ValueError) as error:
+            _record_failure(info, error, "chat_response")
             raise LLMError("LLM_OUTPUT_INVALID", info) from None
         info.success = True
+        info.stage = "complete"
         return ModelReply(text=content, call_info=info)
-    except httpx.TimeoutException:
+    except httpx.TimeoutException as error:
+        _record_failure(info, error, "timeout")
         info.error_code = "LLM_TIMEOUT"
         raise LLMError("LLM_TIMEOUT", info) from None
-    except (httpx.RequestError, httpx.HTTPStatusError):
+    except httpx.HTTPStatusError as error:
+        info.stage = "http_status"
+        info.http_status = error.response.status_code
+        _record_failure(info, error, "http_status")
+        info.error_code = "LLM_UPSTREAM_ERROR"
+        raise LLMError("LLM_UPSTREAM_ERROR", info) from None
+    except httpx.RequestError as error:
+        _record_failure(info, error, "response_decoding" if isinstance(error, httpx.DecodingError) else "transport")
         info.error_code = "LLM_UPSTREAM_ERROR"
         raise LLMError("LLM_UPSTREAM_ERROR", info) from None
     except LLMError as error:

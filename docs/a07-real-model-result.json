@@ -1,0 +1,1846 @@
+{
+  "commit": "532b225b84adcfd37aebd68c64bf1c4f9792ad8a",
+  "started_at": "2026-10-11T01:46:47.693557+00:00",
+  "provider": "书生·端砚",
+  "provider_host": "discovery-api.intern-ai.org.cn",
+  "model": "deepseek-v4-flash-vision",
+  "data_kind": "test",
+  "real_user_trial": false,
+  "transport": "real TCP HTTP",
+  "stages": [
+    {
+      "stage": "create",
+      "http_status": 201,
+      "duration_seconds": 0.079,
+      "response": {
+        "data": {
+          "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+          "status": "draft"
+        }
+      }
+    },
+    {
+      "stage": "real_plan",
+      "http_status": 200,
+      "duration_seconds": 4.265,
+      "response": {
+        "data": {
+          "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+          "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+          "run_id": "165af1e9-39d0-4ed6-8bf5-b042368c6142",
+          "status": "planned"
+        }
+      }
+    },
+    {
+      "stage": "detail",
+      "http_status": 200,
+      "duration_seconds": 0.0,
+      "response": {
+        "data": {
+          "project": {
+            "name": "TEST 真实模型验收：校园 PPT 美化服务",
+            "idea": "为大学生提供低成本 PPT 排版与视觉美化服务；本项目用于程序验收，不代表已有订单或真实试用。",
+            "target_users": "需要课堂展示、答辩或社团汇报的学生",
+            "skills": "Python、AI 辅助设计、PPT 制作",
+            "budget_cny": 50.0,
+            "validation_goal": "验证需求、可接受价格和试用意愿",
+            "data_kind": "test",
+            "id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+            "status": "planned",
+            "created_at": "2026-10-11T01:46:48.002108+00:00"
+          },
+          "plan": {
+            "target_customer": "需要课堂展示、答辩或社团汇报的大学生",
+            "pain_points": [
+              "PPT 排版耗时且效果一般",
+              "缺乏设计技巧与模板",
+              "希望提升展示专业感"
+            ],
+            "value_proposition": "为大学生提供低成本、快速交付的 PPT 排版与视觉美化服务",
+            "hypotheses": [
+              {
+                "id": "h1",
+                "statement": "大学生在课堂展示等场景存在 PPT 美化需求",
+                "question_ids": [
+                  "q1",
+                  "q2"
+                ]
+              },
+              {
+                "id": "h2",
+                "statement": "存在学生可接受且对服务方有利的价格区间",
+                "question_ids": [
+                  "q3"
+                ]
+              },
+              {
+                "id": "h3",
+                "statement": "部分学生有试用或预约该服务的意愿",
+                "question_ids": [
+                  "q4"
+                ]
+              }
+            ],
+            "experiment_steps": [
+              "发布问卷到 2~3 个学生群，收集反馈",
+              "整理分析需求和价格偏好",
+              "根据反馈设计小范围试用方案"
+            ],
+            "next_tasks": [
+              "人工核对问卷链接是否有效",
+              "确认目标学生群活跃度",
+              "计算后续试用所需成本"
+            ],
+            "landing": {
+              "title": "校园 PPT 美化服务需求验证",
+              "summary": "我们正在验证面向大学生的 PPT 美化服务。本页面仅用于收集反馈，不代表已有订单或完整服务上线。",
+              "target_users": "需要课堂展示、答辩或社团汇报的学生",
+              "value_proposition": "低成本、快速交付的 PPT 排版与视觉美化",
+              "features": [
+                "PPT 排版优化",
+                "视觉风格统一",
+                "快速交付"
+              ],
+              "disclaimer": "目前为需求验证阶段，尚未有真实商业成交或完整服务上线。"
+            },
+            "questions": [
+              {
+                "id": "q1",
+                "type": "single",
+                "title": "你在做课堂展示或答辩类 PPT 时，是否觉得排版美化很耗时？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q1a",
+                    "label": "经常，很耗时"
+                  },
+                  {
+                    "id": "q1b",
+                    "label": "偶尔"
+                  },
+                  {
+                    "id": "q1c",
+                    "label": "几乎不"
+                  },
+                  {
+                    "id": "q1d",
+                    "label": "不确定"
+                  }
+                ]
+              },
+              {
+                "id": "q2",
+                "type": "multiple",
+                "title": "你更希望 PPT 美化服务解决哪些问题？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q2a",
+                    "label": "排版杂乱"
+                  },
+                  {
+                    "id": "q2b",
+                    "label": "配色不协调"
+                  },
+                  {
+                    "id": "q2c",
+                    "label": "图表不美观"
+                  },
+                  {
+                    "id": "q2d",
+                    "label": "不需要"
+                  }
+                ]
+              },
+              {
+                "id": "q3",
+                "type": "single",
+                "title": "如果按页付费，你愿意为美化一页 PPT 接受的价格区间是？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q3a",
+                    "label": "5 元以下"
+                  },
+                  {
+                    "id": "q3b",
+                    "label": "5~10 元"
+                  },
+                  {
+                    "id": "q3c",
+                    "label": "10~20 元"
+                  },
+                  {
+                    "id": "q3d",
+                    "label": "不愿意付费"
+                  }
+                ]
+              },
+              {
+                "id": "q4",
+                "type": "text",
+                "title": "如果现在可以免费试用 1 次 PPT 美化，你是否有兴趣？请说明原因或顾虑。",
+                "required": false,
+                "options": []
+              }
+            ]
+          },
+          "experiment": {
+            "id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+            "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+            "landing": {
+              "title": "校园 PPT 美化服务需求验证",
+              "summary": "我们正在验证面向大学生的 PPT 美化服务。本页面仅用于收集反馈，不代表已有订单或完整服务上线。",
+              "target_users": "需要课堂展示、答辩或社团汇报的学生",
+              "value_proposition": "低成本、快速交付的 PPT 排版与视觉美化",
+              "features": [
+                "PPT 排版优化",
+                "视觉风格统一",
+                "快速交付"
+              ],
+              "disclaimer": "目前为需求验证阶段，尚未有真实商业成交或完整服务上线。"
+            },
+            "questions": [
+              {
+                "id": "q1",
+                "type": "single",
+                "title": "你在做课堂展示或答辩类 PPT 时，是否觉得排版美化很耗时？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q1a",
+                    "label": "经常，很耗时"
+                  },
+                  {
+                    "id": "q1b",
+                    "label": "偶尔"
+                  },
+                  {
+                    "id": "q1c",
+                    "label": "几乎不"
+                  },
+                  {
+                    "id": "q1d",
+                    "label": "不确定"
+                  }
+                ]
+              },
+              {
+                "id": "q2",
+                "type": "multiple",
+                "title": "你更希望 PPT 美化服务解决哪些问题？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q2a",
+                    "label": "排版杂乱"
+                  },
+                  {
+                    "id": "q2b",
+                    "label": "配色不协调"
+                  },
+                  {
+                    "id": "q2c",
+                    "label": "图表不美观"
+                  },
+                  {
+                    "id": "q2d",
+                    "label": "不需要"
+                  }
+                ]
+              },
+              {
+                "id": "q3",
+                "type": "single",
+                "title": "如果按页付费，你愿意为美化一页 PPT 接受的价格区间是？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q3a",
+                    "label": "5 元以下"
+                  },
+                  {
+                    "id": "q3b",
+                    "label": "5~10 元"
+                  },
+                  {
+                    "id": "q3c",
+                    "label": "10~20 元"
+                  },
+                  {
+                    "id": "q3d",
+                    "label": "不愿意付费"
+                  }
+                ]
+              },
+              {
+                "id": "q4",
+                "type": "text",
+                "title": "如果现在可以免费试用 1 次 PPT 美化，你是否有兴趣？请说明原因或顾虑。",
+                "required": false,
+                "options": []
+              }
+            ],
+            "published_at": null,
+            "service_url": null,
+            "survey_url": null
+          },
+          "latest_report_meta": null,
+          "running_run_id": null
+        }
+      }
+    },
+    {
+      "stage": "publish",
+      "http_status": 200,
+      "duration_seconds": 0.016,
+      "response": {
+        "data": {
+          "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+          "published_at": "2026-10-11T01:46:52.287322+00:00",
+          "service_url": "http://127.0.0.1:54142/e/798gtl9ZyIS0JxUu3uDFDEh7WSSSpCjDVnFEXHm2Hj4",
+          "survey_url": "http://127.0.0.1:54142/e/798gtl9ZyIS0JxUu3uDFDEh7WSSSpCjDVnFEXHm2Hj4/survey"
+        }
+      }
+    },
+    {
+      "stage": "test_response_1",
+      "http_status": 201,
+      "duration_seconds": 0.015,
+      "response": {
+        "data": {
+          "response_id": 1,
+          "submitted_at": "2026-10-11T01:46:52.303621+00:00",
+          "duplicate": false
+        }
+      }
+    },
+    {
+      "stage": "test_response_2",
+      "http_status": 201,
+      "duration_seconds": 0.016,
+      "response": {
+        "data": {
+          "response_id": 2,
+          "submitted_at": "2026-10-11T01:46:52.314447+00:00",
+          "duplicate": false
+        }
+      }
+    },
+    {
+      "stage": "test_response_3",
+      "http_status": 201,
+      "duration_seconds": 0.0,
+      "response": {
+        "data": {
+          "response_id": 3,
+          "submitted_at": "2026-10-11T01:46:52.326739+00:00",
+          "duplicate": false
+        }
+      }
+    },
+    {
+      "stage": "statistics",
+      "http_status": 200,
+      "duration_seconds": 0.016,
+      "response": {
+        "data": {
+          "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+          "response_count": 3,
+          "cutoff_response_id": 3,
+          "questions": [
+            {
+              "id": "q1",
+              "type": "single",
+              "answered_count": 3,
+              "options": [
+                {
+                  "id": "q1a",
+                  "label": "经常，很耗时",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q1b",
+                  "label": "偶尔",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q1c",
+                  "label": "几乎不",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q1d",
+                  "label": "不确定",
+                  "count": 0,
+                  "percentage": 0.0
+                }
+              ]
+            },
+            {
+              "id": "q2",
+              "type": "multiple",
+              "answered_count": 3,
+              "options": [
+                {
+                  "id": "q2a",
+                  "label": "排版杂乱",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q2b",
+                  "label": "配色不协调",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q2c",
+                  "label": "图表不美观",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q2d",
+                  "label": "不需要",
+                  "count": 0,
+                  "percentage": 0.0
+                }
+              ]
+            },
+            {
+              "id": "q3",
+              "type": "single",
+              "answered_count": 3,
+              "options": [
+                {
+                  "id": "q3a",
+                  "label": "5 元以下",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q3b",
+                  "label": "5~10 元",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q3c",
+                  "label": "10~20 元",
+                  "count": 1,
+                  "percentage": 33.33
+                },
+                {
+                  "id": "q3d",
+                  "label": "不愿意付费",
+                  "count": 0,
+                  "percentage": 0.0
+                }
+              ]
+            },
+            {
+              "id": "q4",
+              "type": "text",
+              "answered_count": 3,
+              "texts": [
+                {
+                  "response_id": 1,
+                  "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                },
+                {
+                  "response_id": 2,
+                  "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                },
+                {
+                  "response_id": 3,
+                  "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "stage": "real_review",
+      "http_status": 200,
+      "duration_seconds": 6.156,
+      "response": {
+        "data": {
+          "report_id": "7fca5b4a-5d49-480d-bfe9-6629f464d05c",
+          "run_id": "feba81a7-0fa4-4b47-a17b-d5f96385bd1b",
+          "response_count": 3,
+          "cutoff_response_id": 3
+        }
+      }
+    },
+    {
+      "stage": "report",
+      "http_status": 200,
+      "duration_seconds": 0.0,
+      "response": {
+        "data": {
+          "id": "7fca5b4a-5d49-480d-bfe9-6629f464d05c",
+          "created_at": "2026-10-11T01:46:58.482651+00:00",
+          "response_count": 3,
+          "cutoff_response_id": 3,
+          "statistics": {
+            "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+            "response_count": 3,
+            "cutoff_response_id": 3,
+            "questions": [
+              {
+                "id": "q1",
+                "type": "single",
+                "answered_count": 3,
+                "options": [
+                  {
+                    "id": "q1a",
+                    "label": "经常，很耗时",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q1b",
+                    "label": "偶尔",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q1c",
+                    "label": "几乎不",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q1d",
+                    "label": "不确定",
+                    "count": 0,
+                    "percentage": 0.0
+                  }
+                ]
+              },
+              {
+                "id": "q2",
+                "type": "multiple",
+                "answered_count": 3,
+                "options": [
+                  {
+                    "id": "q2a",
+                    "label": "排版杂乱",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q2b",
+                    "label": "配色不协调",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q2c",
+                    "label": "图表不美观",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q2d",
+                    "label": "不需要",
+                    "count": 0,
+                    "percentage": 0.0
+                  }
+                ]
+              },
+              {
+                "id": "q3",
+                "type": "single",
+                "answered_count": 3,
+                "options": [
+                  {
+                    "id": "q3a",
+                    "label": "5 元以下",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q3b",
+                    "label": "5~10 元",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q3c",
+                    "label": "10~20 元",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q3d",
+                    "label": "不愿意付费",
+                    "count": 0,
+                    "percentage": 0.0
+                  }
+                ]
+              },
+              {
+                "id": "q4",
+                "type": "text",
+                "answered_count": 3,
+                "texts": [
+                  {
+                    "response_id": 1,
+                    "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                  },
+                  {
+                    "response_id": 2,
+                    "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                  },
+                  {
+                    "response_id": 3,
+                    "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                  }
+                ]
+              }
+            ]
+          },
+          "review": {
+            "summary": "共回收3份回答，属探索性样本。q1显示1人常感耗时、1人偶尔、1人几乎不；q2中排版杂乱、配色不协调、图表不美观各1人次。q3价格意愿分散在5元以下、5~10元、10~20元各1人，无明确拒绝付费。q4为受控test文本，不能作为真实试用意愿。整体证据不足，需扩大样本。",
+            "hypothesis_assessments": [
+              {
+                "hypothesis_id": "h1",
+                "status": "preliminary_support",
+                "reason": "3份回答中，q1有2人选择‘经常/偶尔’觉得排版耗时，q2有3人次选择了具体痛点（排版、配色、图表），但样本量极小且分布均衡，仅提供初步方向性支持。",
+                "evidence_refs": [
+                  {
+                    "question_id": "q1",
+                    "option_id": "q1a"
+                  },
+                  {
+                    "question_id": "q1",
+                    "option_id": "q1b"
+                  },
+                  {
+                    "question_id": "q2",
+                    "option_id": "q2a"
+                  },
+                  {
+                    "question_id": "q2",
+                    "option_id": "q2b"
+                  },
+                  {
+                    "question_id": "q2",
+                    "option_id": "q2c"
+                  }
+                ]
+              },
+              {
+                "hypothesis_id": "h2",
+                "status": "insufficient_evidence",
+                "reason": "q3价格选择在5元以下、5~10元、10~20元各1人，未出现‘不愿意付费’，但样本仅3人，且未验证服务成本与利润空间，无法判断是否存在可持续的有利价格区间。",
+                "evidence_refs": [
+                  {
+                    "question_id": "q3",
+                    "option_id": "q3a"
+                  },
+                  {
+                    "question_id": "q3",
+                    "option_id": "q3b"
+                  },
+                  {
+                    "question_id": "q3",
+                    "option_id": "q3c"
+                  }
+                ]
+              },
+              {
+                "hypothesis_id": "h3",
+                "status": "insufficient_evidence",
+                "reason": "q4的3条文字均为‘受控test回答：希望先了解交付周期和费用，不代表真实用户意见’，非真实试用意愿表达，且样本量不足，无法验证试用或预约意愿。",
+                "evidence_refs": [
+                  {
+                    "question_id": "q4",
+                    "response_id": 1
+                  },
+                  {
+                    "question_id": "q4",
+                    "response_id": 2
+                  },
+                  {
+                    "question_id": "q4",
+                    "response_id": 3
+                  }
+                ]
+              }
+            ],
+            "key_feedback": [
+              "3份回答中，q1有1人经常觉得PPT美化耗时，1人偶尔，1人几乎不，痛点存在但差异明显。",
+              "q2显示用户具体痛点分散在排版杂乱、配色不协调和图表不美观，共3人次，没有单一集中痛点。",
+              "q3价格接受度覆盖5元以下到10~20元，各1人，但样本过小，无法判断主流价位。",
+              "q4全部为受控test回答，明确表示希望先了解交付周期和费用，不含真实试用兴趣。",
+              "多位受访者（受控回答）在试用前关注交付周期与费用，提示服务需透明报价和时长。",
+              "当前data_kind=test，数据仅用于程序验收，不代表真实用户反馈。",
+              "样本量低于5份，结果只能作为探索性参考，不能外推。",
+              "q3没有选择‘不愿意付费’的选项，但也不足以证明付费意愿。",
+              "q1回答中‘经常’与‘几乎不’各占1/3，需求强度并不一致。",
+              "建议后续使用真实用户样本重新验证，而非测试数据。"
+            ],
+            "limitations": [
+              "样本仅3份，低于5份，属于探索性样本，统计结果不能代表校园总体。",
+              "data_kind=test，所有数据为受控测试内容，不是真实试用或用户意见。",
+              "意向回答（如价格接受度）不能证明付费需求或商业成功，仍需真实下单验证。",
+              "q4文字回答为重复的测试模板，无法作为试用意愿的有效证据。",
+              "样本量过小导致各选项百分比波动大，任何趋势判断都缺乏统计效力。",
+              "未收集用户对具体服务内容、交付周期、质量的期望，难以支撑服务设计。",
+              "缺少与现有替代方案（如自己美化、模板、低价代做）的比较验证。",
+              "价格区间仅直接询问，未结合成本、工作量或竞品定价做盈利分析。"
+            ],
+            "next_actions": [
+              {
+                "action": "在真实校园学生群中发放问卷，目标至少30份，并去除测试标记数据。",
+                "owner_role": "产品验证负责人",
+                "completion_criterion": "收集到30份以上真实学生回答，且q1痛点比例、q3价格分布有明确集中趋势。"
+              },
+              {
+                "action": "设计5页真实PPT美化样例，并提供免费试用预约链接，观察实际预约人数。",
+                "owner_role": "运营/服务执行",
+                "completion_criterion": "收到至少5个有效预约申请，并完成1次交付后回收反馈。"
+              },
+              {
+                "action": "访谈2~3名有意向学生，深入询问交付周期、费用、PPT使用场景和付费决策因素。",
+                "owner_role": "用户研究",
+                "completion_criterion": "完成访谈并整理出至少3条可执行的服务设计建议。"
+              }
+            ]
+          },
+          "stale": false,
+          "data_kind": "test"
+        }
+      }
+    },
+    {
+      "stage": "markdown",
+      "http_status": 200,
+      "duration_seconds": 0.016
+    },
+    {
+      "stage": "new_test_response",
+      "http_status": 201,
+      "duration_seconds": 0.0,
+      "response": {
+        "data": {
+          "response_id": 4,
+          "submitted_at": "2026-10-11T01:46:58.512842+00:00",
+          "duplicate": false
+        }
+      }
+    },
+    {
+      "stage": "stale_report",
+      "http_status": 200,
+      "duration_seconds": 0.015,
+      "response": {
+        "data": {
+          "id": "7fca5b4a-5d49-480d-bfe9-6629f464d05c",
+          "created_at": "2026-10-11T01:46:58.482651+00:00",
+          "response_count": 3,
+          "cutoff_response_id": 3,
+          "statistics": {
+            "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+            "response_count": 3,
+            "cutoff_response_id": 3,
+            "questions": [
+              {
+                "id": "q1",
+                "type": "single",
+                "answered_count": 3,
+                "options": [
+                  {
+                    "id": "q1a",
+                    "label": "经常，很耗时",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q1b",
+                    "label": "偶尔",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q1c",
+                    "label": "几乎不",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q1d",
+                    "label": "不确定",
+                    "count": 0,
+                    "percentage": 0.0
+                  }
+                ]
+              },
+              {
+                "id": "q2",
+                "type": "multiple",
+                "answered_count": 3,
+                "options": [
+                  {
+                    "id": "q2a",
+                    "label": "排版杂乱",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q2b",
+                    "label": "配色不协调",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q2c",
+                    "label": "图表不美观",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q2d",
+                    "label": "不需要",
+                    "count": 0,
+                    "percentage": 0.0
+                  }
+                ]
+              },
+              {
+                "id": "q3",
+                "type": "single",
+                "answered_count": 3,
+                "options": [
+                  {
+                    "id": "q3a",
+                    "label": "5 元以下",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q3b",
+                    "label": "5~10 元",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q3c",
+                    "label": "10~20 元",
+                    "count": 1,
+                    "percentage": 33.33
+                  },
+                  {
+                    "id": "q3d",
+                    "label": "不愿意付费",
+                    "count": 0,
+                    "percentage": 0.0
+                  }
+                ]
+              },
+              {
+                "id": "q4",
+                "type": "text",
+                "answered_count": 3,
+                "texts": [
+                  {
+                    "response_id": 1,
+                    "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                  },
+                  {
+                    "response_id": 2,
+                    "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                  },
+                  {
+                    "response_id": 3,
+                    "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+                  }
+                ]
+              }
+            ]
+          },
+          "review": {
+            "summary": "共回收3份回答，属探索性样本。q1显示1人常感耗时、1人偶尔、1人几乎不；q2中排版杂乱、配色不协调、图表不美观各1人次。q3价格意愿分散在5元以下、5~10元、10~20元各1人，无明确拒绝付费。q4为受控test文本，不能作为真实试用意愿。整体证据不足，需扩大样本。",
+            "hypothesis_assessments": [
+              {
+                "hypothesis_id": "h1",
+                "status": "preliminary_support",
+                "reason": "3份回答中，q1有2人选择‘经常/偶尔’觉得排版耗时，q2有3人次选择了具体痛点（排版、配色、图表），但样本量极小且分布均衡，仅提供初步方向性支持。",
+                "evidence_refs": [
+                  {
+                    "question_id": "q1",
+                    "option_id": "q1a"
+                  },
+                  {
+                    "question_id": "q1",
+                    "option_id": "q1b"
+                  },
+                  {
+                    "question_id": "q2",
+                    "option_id": "q2a"
+                  },
+                  {
+                    "question_id": "q2",
+                    "option_id": "q2b"
+                  },
+                  {
+                    "question_id": "q2",
+                    "option_id": "q2c"
+                  }
+                ]
+              },
+              {
+                "hypothesis_id": "h2",
+                "status": "insufficient_evidence",
+                "reason": "q3价格选择在5元以下、5~10元、10~20元各1人，未出现‘不愿意付费’，但样本仅3人，且未验证服务成本与利润空间，无法判断是否存在可持续的有利价格区间。",
+                "evidence_refs": [
+                  {
+                    "question_id": "q3",
+                    "option_id": "q3a"
+                  },
+                  {
+                    "question_id": "q3",
+                    "option_id": "q3b"
+                  },
+                  {
+                    "question_id": "q3",
+                    "option_id": "q3c"
+                  }
+                ]
+              },
+              {
+                "hypothesis_id": "h3",
+                "status": "insufficient_evidence",
+                "reason": "q4的3条文字均为‘受控test回答：希望先了解交付周期和费用，不代表真实用户意见’，非真实试用意愿表达，且样本量不足，无法验证试用或预约意愿。",
+                "evidence_refs": [
+                  {
+                    "question_id": "q4",
+                    "response_id": 1
+                  },
+                  {
+                    "question_id": "q4",
+                    "response_id": 2
+                  },
+                  {
+                    "question_id": "q4",
+                    "response_id": 3
+                  }
+                ]
+              }
+            ],
+            "key_feedback": [
+              "3份回答中，q1有1人经常觉得PPT美化耗时，1人偶尔，1人几乎不，痛点存在但差异明显。",
+              "q2显示用户具体痛点分散在排版杂乱、配色不协调和图表不美观，共3人次，没有单一集中痛点。",
+              "q3价格接受度覆盖5元以下到10~20元，各1人，但样本过小，无法判断主流价位。",
+              "q4全部为受控test回答，明确表示希望先了解交付周期和费用，不含真实试用兴趣。",
+              "多位受访者（受控回答）在试用前关注交付周期与费用，提示服务需透明报价和时长。",
+              "当前data_kind=test，数据仅用于程序验收，不代表真实用户反馈。",
+              "样本量低于5份，结果只能作为探索性参考，不能外推。",
+              "q3没有选择‘不愿意付费’的选项，但也不足以证明付费意愿。",
+              "q1回答中‘经常’与‘几乎不’各占1/3，需求强度并不一致。",
+              "建议后续使用真实用户样本重新验证，而非测试数据。"
+            ],
+            "limitations": [
+              "样本仅3份，低于5份，属于探索性样本，统计结果不能代表校园总体。",
+              "data_kind=test，所有数据为受控测试内容，不是真实试用或用户意见。",
+              "意向回答（如价格接受度）不能证明付费需求或商业成功，仍需真实下单验证。",
+              "q4文字回答为重复的测试模板，无法作为试用意愿的有效证据。",
+              "样本量过小导致各选项百分比波动大，任何趋势判断都缺乏统计效力。",
+              "未收集用户对具体服务内容、交付周期、质量的期望，难以支撑服务设计。",
+              "缺少与现有替代方案（如自己美化、模板、低价代做）的比较验证。",
+              "价格区间仅直接询问，未结合成本、工作量或竞品定价做盈利分析。"
+            ],
+            "next_actions": [
+              {
+                "action": "在真实校园学生群中发放问卷，目标至少30份，并去除测试标记数据。",
+                "owner_role": "产品验证负责人",
+                "completion_criterion": "收集到30份以上真实学生回答，且q1痛点比例、q3价格分布有明确集中趋势。"
+              },
+              {
+                "action": "设计5页真实PPT美化样例，并提供免费试用预约链接，观察实际预约人数。",
+                "owner_role": "运营/服务执行",
+                "completion_criterion": "收到至少5个有效预约申请，并完成1次交付后回收反馈。"
+              },
+              {
+                "action": "访谈2~3名有意向学生，深入询问交付周期、费用、PPT使用场景和付费决策因素。",
+                "owner_role": "用户研究",
+                "completion_criterion": "完成访谈并整理出至少3条可执行的服务设计建议。"
+              }
+            ]
+          },
+          "stale": true,
+          "data_kind": "test"
+        }
+      }
+    },
+    {
+      "stage": "old_markdown",
+      "http_status": 200,
+      "duration_seconds": 0.0
+    },
+    {
+      "stage": "final_detail",
+      "http_status": 200,
+      "duration_seconds": 0.0,
+      "response": {
+        "data": {
+          "project": {
+            "name": "TEST 真实模型验收：校园 PPT 美化服务",
+            "idea": "为大学生提供低成本 PPT 排版与视觉美化服务；本项目用于程序验收，不代表已有订单或真实试用。",
+            "target_users": "需要课堂展示、答辩或社团汇报的学生",
+            "skills": "Python、AI 辅助设计、PPT 制作",
+            "budget_cny": 50.0,
+            "validation_goal": "验证需求、可接受价格和试用意愿",
+            "data_kind": "test",
+            "id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+            "status": "collecting",
+            "created_at": "2026-10-11T01:46:48.002108+00:00"
+          },
+          "plan": {
+            "target_customer": "需要课堂展示、答辩或社团汇报的大学生",
+            "pain_points": [
+              "PPT 排版耗时且效果一般",
+              "缺乏设计技巧与模板",
+              "希望提升展示专业感"
+            ],
+            "value_proposition": "为大学生提供低成本、快速交付的 PPT 排版与视觉美化服务",
+            "hypotheses": [
+              {
+                "id": "h1",
+                "statement": "大学生在课堂展示等场景存在 PPT 美化需求",
+                "question_ids": [
+                  "q1",
+                  "q2"
+                ]
+              },
+              {
+                "id": "h2",
+                "statement": "存在学生可接受且对服务方有利的价格区间",
+                "question_ids": [
+                  "q3"
+                ]
+              },
+              {
+                "id": "h3",
+                "statement": "部分学生有试用或预约该服务的意愿",
+                "question_ids": [
+                  "q4"
+                ]
+              }
+            ],
+            "experiment_steps": [
+              "发布问卷到 2~3 个学生群，收集反馈",
+              "整理分析需求和价格偏好",
+              "根据反馈设计小范围试用方案"
+            ],
+            "next_tasks": [
+              "人工核对问卷链接是否有效",
+              "确认目标学生群活跃度",
+              "计算后续试用所需成本"
+            ],
+            "landing": {
+              "title": "校园 PPT 美化服务需求验证",
+              "summary": "我们正在验证面向大学生的 PPT 美化服务。本页面仅用于收集反馈，不代表已有订单或完整服务上线。",
+              "target_users": "需要课堂展示、答辩或社团汇报的学生",
+              "value_proposition": "低成本、快速交付的 PPT 排版与视觉美化",
+              "features": [
+                "PPT 排版优化",
+                "视觉风格统一",
+                "快速交付"
+              ],
+              "disclaimer": "目前为需求验证阶段，尚未有真实商业成交或完整服务上线。"
+            },
+            "questions": [
+              {
+                "id": "q1",
+                "type": "single",
+                "title": "你在做课堂展示或答辩类 PPT 时，是否觉得排版美化很耗时？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q1a",
+                    "label": "经常，很耗时"
+                  },
+                  {
+                    "id": "q1b",
+                    "label": "偶尔"
+                  },
+                  {
+                    "id": "q1c",
+                    "label": "几乎不"
+                  },
+                  {
+                    "id": "q1d",
+                    "label": "不确定"
+                  }
+                ]
+              },
+              {
+                "id": "q2",
+                "type": "multiple",
+                "title": "你更希望 PPT 美化服务解决哪些问题？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q2a",
+                    "label": "排版杂乱"
+                  },
+                  {
+                    "id": "q2b",
+                    "label": "配色不协调"
+                  },
+                  {
+                    "id": "q2c",
+                    "label": "图表不美观"
+                  },
+                  {
+                    "id": "q2d",
+                    "label": "不需要"
+                  }
+                ]
+              },
+              {
+                "id": "q3",
+                "type": "single",
+                "title": "如果按页付费，你愿意为美化一页 PPT 接受的价格区间是？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q3a",
+                    "label": "5 元以下"
+                  },
+                  {
+                    "id": "q3b",
+                    "label": "5~10 元"
+                  },
+                  {
+                    "id": "q3c",
+                    "label": "10~20 元"
+                  },
+                  {
+                    "id": "q3d",
+                    "label": "不愿意付费"
+                  }
+                ]
+              },
+              {
+                "id": "q4",
+                "type": "text",
+                "title": "如果现在可以免费试用 1 次 PPT 美化，你是否有兴趣？请说明原因或顾虑。",
+                "required": false,
+                "options": []
+              }
+            ]
+          },
+          "experiment": {
+            "id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+            "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+            "landing": {
+              "title": "校园 PPT 美化服务需求验证",
+              "summary": "我们正在验证面向大学生的 PPT 美化服务。本页面仅用于收集反馈，不代表已有订单或完整服务上线。",
+              "target_users": "需要课堂展示、答辩或社团汇报的学生",
+              "value_proposition": "低成本、快速交付的 PPT 排版与视觉美化",
+              "features": [
+                "PPT 排版优化",
+                "视觉风格统一",
+                "快速交付"
+              ],
+              "disclaimer": "目前为需求验证阶段，尚未有真实商业成交或完整服务上线。"
+            },
+            "questions": [
+              {
+                "id": "q1",
+                "type": "single",
+                "title": "你在做课堂展示或答辩类 PPT 时，是否觉得排版美化很耗时？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q1a",
+                    "label": "经常，很耗时"
+                  },
+                  {
+                    "id": "q1b",
+                    "label": "偶尔"
+                  },
+                  {
+                    "id": "q1c",
+                    "label": "几乎不"
+                  },
+                  {
+                    "id": "q1d",
+                    "label": "不确定"
+                  }
+                ]
+              },
+              {
+                "id": "q2",
+                "type": "multiple",
+                "title": "你更希望 PPT 美化服务解决哪些问题？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q2a",
+                    "label": "排版杂乱"
+                  },
+                  {
+                    "id": "q2b",
+                    "label": "配色不协调"
+                  },
+                  {
+                    "id": "q2c",
+                    "label": "图表不美观"
+                  },
+                  {
+                    "id": "q2d",
+                    "label": "不需要"
+                  }
+                ]
+              },
+              {
+                "id": "q3",
+                "type": "single",
+                "title": "如果按页付费，你愿意为美化一页 PPT 接受的价格区间是？",
+                "required": true,
+                "options": [
+                  {
+                    "id": "q3a",
+                    "label": "5 元以下"
+                  },
+                  {
+                    "id": "q3b",
+                    "label": "5~10 元"
+                  },
+                  {
+                    "id": "q3c",
+                    "label": "10~20 元"
+                  },
+                  {
+                    "id": "q3d",
+                    "label": "不愿意付费"
+                  }
+                ]
+              },
+              {
+                "id": "q4",
+                "type": "text",
+                "title": "如果现在可以免费试用 1 次 PPT 美化，你是否有兴趣？请说明原因或顾虑。",
+                "required": false,
+                "options": []
+              }
+            ],
+            "published_at": "2026-10-11T01:46:52.287322+00:00",
+            "service_url": "http://127.0.0.1:54142/e/798gtl9ZyIS0JxUu3uDFDEh7WSSSpCjDVnFEXHm2Hj4",
+            "survey_url": "http://127.0.0.1:54142/e/798gtl9ZyIS0JxUu3uDFDEh7WSSSpCjDVnFEXHm2Hj4/survey"
+          },
+          "latest_report_meta": {
+            "id": "7fca5b4a-5d49-480d-bfe9-6629f464d05c",
+            "response_count": 3,
+            "cutoff_response_id": 3,
+            "created_at": "2026-10-11T01:46:58.482651+00:00",
+            "stale": true
+          },
+          "running_run_id": null
+        }
+      }
+    }
+  ],
+  "checks": {
+    "three_test_responses": true,
+    "report_matches_prior_statistics": true,
+    "report_matches_persistent_snapshot": true,
+    "stale_true_old_snapshot": true,
+    "old_markdown_unchanged": true,
+    "collecting_after_new_feedback": true
+  },
+  "model_calls": [
+    {
+      "model": "deepseek-v4-flash-vision",
+      "started_at": "2026-10-11T01:46:52.358797+00:00",
+      "duration_seconds": 6.121,
+      "success": true,
+      "http_status": 200,
+      "token_usage": {
+        "prompt_tokens": 1686,
+        "completion_tokens": 1261,
+        "total_tokens": 2947,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 209
+        }
+      },
+      "error_code": null
+    },
+    {
+      "model": "deepseek-v4-flash-vision",
+      "started_at": "2026-10-11T01:46:48.024711+00:00",
+      "duration_seconds": 4.229,
+      "success": true,
+      "http_status": 200,
+      "token_usage": {
+        "prompt_tokens": 1015,
+        "completion_tokens": 953,
+        "total_tokens": 1968,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 83
+        }
+      },
+      "error_code": null
+    }
+  ],
+  "success": true,
+  "project_input": {
+    "name": "TEST 真实模型验收：校园 PPT 美化服务",
+    "idea": "为大学生提供低成本 PPT 排版与视觉美化服务；本项目用于程序验收，不代表已有订单或真实试用。",
+    "target_users": "需要课堂展示、答辩或社团汇报的学生",
+    "skills": "Python、AI 辅助设计、PPT 制作",
+    "budget_cny": 50,
+    "validation_goal": "验证需求、可接受价格和试用意愿",
+    "data_kind": "test"
+  },
+  "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+  "plan_run_id": "165af1e9-39d0-4ed6-8bf5-b042368c6142",
+  "plan": {
+    "target_customer": "需要课堂展示、答辩或社团汇报的大学生",
+    "pain_points": [
+      "PPT 排版耗时且效果一般",
+      "缺乏设计技巧与模板",
+      "希望提升展示专业感"
+    ],
+    "value_proposition": "为大学生提供低成本、快速交付的 PPT 排版与视觉美化服务",
+    "hypotheses": [
+      {
+        "id": "h1",
+        "statement": "大学生在课堂展示等场景存在 PPT 美化需求",
+        "question_ids": [
+          "q1",
+          "q2"
+        ]
+      },
+      {
+        "id": "h2",
+        "statement": "存在学生可接受且对服务方有利的价格区间",
+        "question_ids": [
+          "q3"
+        ]
+      },
+      {
+        "id": "h3",
+        "statement": "部分学生有试用或预约该服务的意愿",
+        "question_ids": [
+          "q4"
+        ]
+      }
+    ],
+    "experiment_steps": [
+      "发布问卷到 2~3 个学生群，收集反馈",
+      "整理分析需求和价格偏好",
+      "根据反馈设计小范围试用方案"
+    ],
+    "next_tasks": [
+      "人工核对问卷链接是否有效",
+      "确认目标学生群活跃度",
+      "计算后续试用所需成本"
+    ],
+    "landing": {
+      "title": "校园 PPT 美化服务需求验证",
+      "summary": "我们正在验证面向大学生的 PPT 美化服务。本页面仅用于收集反馈，不代表已有订单或完整服务上线。",
+      "target_users": "需要课堂展示、答辩或社团汇报的学生",
+      "value_proposition": "低成本、快速交付的 PPT 排版与视觉美化",
+      "features": [
+        "PPT 排版优化",
+        "视觉风格统一",
+        "快速交付"
+      ],
+      "disclaimer": "目前为需求验证阶段，尚未有真实商业成交或完整服务上线。"
+    },
+    "questions": [
+      {
+        "id": "q1",
+        "type": "single",
+        "title": "你在做课堂展示或答辩类 PPT 时，是否觉得排版美化很耗时？",
+        "required": true,
+        "options": [
+          {
+            "id": "q1a",
+            "label": "经常，很耗时"
+          },
+          {
+            "id": "q1b",
+            "label": "偶尔"
+          },
+          {
+            "id": "q1c",
+            "label": "几乎不"
+          },
+          {
+            "id": "q1d",
+            "label": "不确定"
+          }
+        ]
+      },
+      {
+        "id": "q2",
+        "type": "multiple",
+        "title": "你更希望 PPT 美化服务解决哪些问题？",
+        "required": true,
+        "options": [
+          {
+            "id": "q2a",
+            "label": "排版杂乱"
+          },
+          {
+            "id": "q2b",
+            "label": "配色不协调"
+          },
+          {
+            "id": "q2c",
+            "label": "图表不美观"
+          },
+          {
+            "id": "q2d",
+            "label": "不需要"
+          }
+        ]
+      },
+      {
+        "id": "q3",
+        "type": "single",
+        "title": "如果按页付费，你愿意为美化一页 PPT 接受的价格区间是？",
+        "required": true,
+        "options": [
+          {
+            "id": "q3a",
+            "label": "5 元以下"
+          },
+          {
+            "id": "q3b",
+            "label": "5~10 元"
+          },
+          {
+            "id": "q3c",
+            "label": "10~20 元"
+          },
+          {
+            "id": "q3d",
+            "label": "不愿意付费"
+          }
+        ]
+      },
+      {
+        "id": "q4",
+        "type": "text",
+        "title": "如果现在可以免费试用 1 次 PPT 美化，你是否有兴趣？请说明原因或顾虑。",
+        "required": false,
+        "options": []
+      }
+    ]
+  },
+  "controlled_answers": [
+    {
+      "q1": "q1a",
+      "q2": [
+        "q2a"
+      ],
+      "q3": "q3a",
+      "q4": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+    },
+    {
+      "q1": "q1b",
+      "q2": [
+        "q2b"
+      ],
+      "q3": "q3b",
+      "q4": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+    },
+    {
+      "q1": "q1c",
+      "q2": [
+        "q2c"
+      ],
+      "q3": "q3c",
+      "q4": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+    }
+  ],
+  "review_run_id": "feba81a7-0fa4-4b47-a17b-d5f96385bd1b",
+  "report": {
+    "id": "7fca5b4a-5d49-480d-bfe9-6629f464d05c",
+    "created_at": "2026-10-11T01:46:58.482651+00:00",
+    "response_count": 3,
+    "cutoff_response_id": 3,
+    "statistics": {
+      "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+      "response_count": 3,
+      "cutoff_response_id": 3,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "single",
+          "answered_count": 3,
+          "options": [
+            {
+              "id": "q1a",
+              "label": "经常，很耗时",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q1b",
+              "label": "偶尔",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q1c",
+              "label": "几乎不",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q1d",
+              "label": "不确定",
+              "count": 0,
+              "percentage": 0.0
+            }
+          ]
+        },
+        {
+          "id": "q2",
+          "type": "multiple",
+          "answered_count": 3,
+          "options": [
+            {
+              "id": "q2a",
+              "label": "排版杂乱",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q2b",
+              "label": "配色不协调",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q2c",
+              "label": "图表不美观",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q2d",
+              "label": "不需要",
+              "count": 0,
+              "percentage": 0.0
+            }
+          ]
+        },
+        {
+          "id": "q3",
+          "type": "single",
+          "answered_count": 3,
+          "options": [
+            {
+              "id": "q3a",
+              "label": "5 元以下",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q3b",
+              "label": "5~10 元",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q3c",
+              "label": "10~20 元",
+              "count": 1,
+              "percentage": 33.33
+            },
+            {
+              "id": "q3d",
+              "label": "不愿意付费",
+              "count": 0,
+              "percentage": 0.0
+            }
+          ]
+        },
+        {
+          "id": "q4",
+          "type": "text",
+          "answered_count": 3,
+          "texts": [
+            {
+              "response_id": 1,
+              "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+            },
+            {
+              "response_id": 2,
+              "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+            },
+            {
+              "response_id": 3,
+              "text": "受控 test 回答：希望先了解交付周期和费用，不代表真实用户意见。"
+            }
+          ]
+        }
+      ]
+    },
+    "review": {
+      "summary": "共回收3份回答，属探索性样本。q1显示1人常感耗时、1人偶尔、1人几乎不；q2中排版杂乱、配色不协调、图表不美观各1人次。q3价格意愿分散在5元以下、5~10元、10~20元各1人，无明确拒绝付费。q4为受控test文本，不能作为真实试用意愿。整体证据不足，需扩大样本。",
+      "hypothesis_assessments": [
+        {
+          "hypothesis_id": "h1",
+          "status": "preliminary_support",
+          "reason": "3份回答中，q1有2人选择‘经常/偶尔’觉得排版耗时，q2有3人次选择了具体痛点（排版、配色、图表），但样本量极小且分布均衡，仅提供初步方向性支持。",
+          "evidence_refs": [
+            {
+              "question_id": "q1",
+              "option_id": "q1a"
+            },
+            {
+              "question_id": "q1",
+              "option_id": "q1b"
+            },
+            {
+              "question_id": "q2",
+              "option_id": "q2a"
+            },
+            {
+              "question_id": "q2",
+              "option_id": "q2b"
+            },
+            {
+              "question_id": "q2",
+              "option_id": "q2c"
+            }
+          ]
+        },
+        {
+          "hypothesis_id": "h2",
+          "status": "insufficient_evidence",
+          "reason": "q3价格选择在5元以下、5~10元、10~20元各1人，未出现‘不愿意付费’，但样本仅3人，且未验证服务成本与利润空间，无法判断是否存在可持续的有利价格区间。",
+          "evidence_refs": [
+            {
+              "question_id": "q3",
+              "option_id": "q3a"
+            },
+            {
+              "question_id": "q3",
+              "option_id": "q3b"
+            },
+            {
+              "question_id": "q3",
+              "option_id": "q3c"
+            }
+          ]
+        },
+        {
+          "hypothesis_id": "h3",
+          "status": "insufficient_evidence",
+          "reason": "q4的3条文字均为‘受控test回答：希望先了解交付周期和费用，不代表真实用户意见’，非真实试用意愿表达，且样本量不足，无法验证试用或预约意愿。",
+          "evidence_refs": [
+            {
+              "question_id": "q4",
+              "response_id": 1
+            },
+            {
+              "question_id": "q4",
+              "response_id": 2
+            },
+            {
+              "question_id": "q4",
+              "response_id": 3
+            }
+          ]
+        }
+      ],
+      "key_feedback": [
+        "3份回答中，q1有1人经常觉得PPT美化耗时，1人偶尔，1人几乎不，痛点存在但差异明显。",
+        "q2显示用户具体痛点分散在排版杂乱、配色不协调和图表不美观，共3人次，没有单一集中痛点。",
+        "q3价格接受度覆盖5元以下到10~20元，各1人，但样本过小，无法判断主流价位。",
+        "q4全部为受控test回答，明确表示希望先了解交付周期和费用，不含真实试用兴趣。",
+        "多位受访者（受控回答）在试用前关注交付周期与费用，提示服务需透明报价和时长。",
+        "当前data_kind=test，数据仅用于程序验收，不代表真实用户反馈。",
+        "样本量低于5份，结果只能作为探索性参考，不能外推。",
+        "q3没有选择‘不愿意付费’的选项，但也不足以证明付费意愿。",
+        "q1回答中‘经常’与‘几乎不’各占1/3，需求强度并不一致。",
+        "建议后续使用真实用户样本重新验证，而非测试数据。"
+      ],
+      "limitations": [
+        "样本仅3份，低于5份，属于探索性样本，统计结果不能代表校园总体。",
+        "data_kind=test，所有数据为受控测试内容，不是真实试用或用户意见。",
+        "意向回答（如价格接受度）不能证明付费需求或商业成功，仍需真实下单验证。",
+        "q4文字回答为重复的测试模板，无法作为试用意愿的有效证据。",
+        "样本量过小导致各选项百分比波动大，任何趋势判断都缺乏统计效力。",
+        "未收集用户对具体服务内容、交付周期、质量的期望，难以支撑服务设计。",
+        "缺少与现有替代方案（如自己美化、模板、低价代做）的比较验证。",
+        "价格区间仅直接询问，未结合成本、工作量或竞品定价做盈利分析。"
+      ],
+      "next_actions": [
+        {
+          "action": "在真实校园学生群中发放问卷，目标至少30份，并去除测试标记数据。",
+          "owner_role": "产品验证负责人",
+          "completion_criterion": "收集到30份以上真实学生回答，且q1痛点比例、q3价格分布有明确集中趋势。"
+        },
+        {
+          "action": "设计5页真实PPT美化样例，并提供免费试用预约链接，观察实际预约人数。",
+          "owner_role": "运营/服务执行",
+          "completion_criterion": "收到至少5个有效预约申请，并完成1次交付后回收反馈。"
+        },
+        {
+          "action": "访谈2~3名有意向学生，深入询问交付周期、费用、PPT使用场景和付费决策因素。",
+          "owner_role": "用户研究",
+          "completion_criterion": "完成访谈并整理出至少3条可执行的服务设计建议。"
+        }
+      ]
+    },
+    "stale": false,
+    "data_kind": "test"
+  },
+  "markdown_sha256": "f9893d39e4e00566c18e9cc326695dd0299c1d50a2d51428e52542f59266c985",
+  "runs": [
+    {
+      "id": "feba81a7-0fa4-4b47-a17b-d5f96385bd1b",
+      "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+      "action": "review",
+      "status": "succeeded",
+      "started_at": "2026-10-11T01:46:52.343193+00:00",
+      "finished_at": "2026-10-11T01:46:58.482651+00:00",
+      "error_code": null,
+      "error_message": null,
+      "tool_calls": [
+        {
+          "id": "669314d8-c35d-459e-bb6b-8fb48e9ead85",
+          "run_id": "feba81a7-0fa4-4b47-a17b-d5f96385bd1b",
+          "tool_name": "analyze_experiment",
+          "status": "succeeded",
+          "started_at": "2026-10-11T01:46:52.350180+00:00",
+          "finished_at": "2026-10-11T01:46:58.482651+00:00",
+          "error_code": null,
+          "input_summary": {
+            "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b",
+            "data_kind": "test",
+            "model": "deepseek-v4-flash-vision"
+          },
+          "output_ref": {
+            "report_id": "7fca5b4a-5d49-480d-bfe9-6629f464d05c",
+            "response_count": 3,
+            "cutoff_response_id": 3,
+            "model_call": {
+              "model": "deepseek-v4-flash-vision",
+              "started_at": "2026-10-11T01:46:52.358797+00:00",
+              "duration_seconds": 6.121,
+              "success": true,
+              "http_status": 200,
+              "token_usage": {
+                "prompt_tokens": 1686,
+                "completion_tokens": 1261,
+                "total_tokens": 2947,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 209
+                }
+              },
+              "error_code": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "165af1e9-39d0-4ed6-8bf5-b042368c6142",
+      "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+      "action": "plan",
+      "status": "succeeded",
+      "started_at": "2026-10-11T01:46:48.011970+00:00",
+      "finished_at": "2026-10-11T01:46:52.269778+00:00",
+      "error_code": null,
+      "error_message": null,
+      "tool_calls": [
+        {
+          "id": "9839ee56-4e56-40cf-8219-6e7db0b55efa",
+          "run_id": "165af1e9-39d0-4ed6-8bf5-b042368c6142",
+          "tool_name": "make_validation_plan",
+          "status": "succeeded",
+          "started_at": "2026-10-11T01:46:48.017229+00:00",
+          "finished_at": "2026-10-11T01:46:52.254706+00:00",
+          "error_code": null,
+          "input_summary": {
+            "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+            "data_kind": "test",
+            "model": "deepseek-v4-flash-vision",
+            "input_lengths": {
+              "name": 23,
+              "idea": 47,
+              "target_users": 17,
+              "skills": 21,
+              "validation_goal": 15
+            }
+          },
+          "output_ref": {
+            "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+            "hypothesis_count": 3,
+            "question_count": 4,
+            "model_call": {
+              "model": "deepseek-v4-flash-vision",
+              "started_at": "2026-10-11T01:46:48.024711+00:00",
+              "duration_seconds": 4.229,
+              "success": true,
+              "http_status": 200,
+              "token_usage": {
+                "prompt_tokens": 1015,
+                "completion_tokens": 953,
+                "total_tokens": 1968,
+                "prompt_tokens_details": {
+                  "cached_tokens": 0
+                },
+                "completion_tokens_details": {
+                  "reasoning_tokens": 83
+                }
+              },
+              "error_code": null
+            }
+          }
+        },
+        {
+          "id": "2abe29de-93c5-40f1-ac1f-d2cfb78cd517",
+          "run_id": "165af1e9-39d0-4ed6-8bf5-b042368c6142",
+          "tool_name": "create_experiment",
+          "status": "succeeded",
+          "started_at": "2026-10-11T01:46:52.261775+00:00",
+          "finished_at": "2026-10-11T01:46:52.269778+00:00",
+          "error_code": null,
+          "input_summary": {
+            "project_id": "7367e7ce-caf4-4330-b1ad-aaf8ead5e5ae",
+            "hypothesis_count": 3,
+            "question_count": 4
+          },
+          "output_ref": {
+            "experiment_id": "5283b5c6-19dd-4cf2-9cc9-991f0be6b14b"
+          }
+        }
+      ]
+    }
+  ],
+  "failed_runs": 0,
+  "model_call_failure_count": 0,
+  "duration_seconds": 11.047,
+  "finished_at": "2026-10-11T01:46:58.748254+00:00"
+}

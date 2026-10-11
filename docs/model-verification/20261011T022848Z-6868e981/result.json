@@ -1,0 +1,134 @@
+{
+  "commit": "532b225b84adcfd37aebd68c64bf1c4f9792ad8a",
+  "started_at": "2026-10-11T02:28:48.661591+00:00",
+  "provider": "www.cctq.ai",
+  "base_url": "https://www.cctq.ai/v1",
+  "evidence_dir": "D:\\AI+比赛\\firstorder-lab\\docs\\model-verification\\20261011T022848Z-6868e981",
+  "isolated_temporary_database": true,
+  "provider_host": "www.cctq.ai",
+  "model": "gpt-6.1-sol",
+  "data_kind": "test",
+  "real_user_trial": false,
+  "transport": "real TCP HTTP",
+  "automatic_retries": 0,
+  "budgets_seconds": {
+    "http_each_phase": 60,
+    "model_wait": 60.0,
+    "workflow_including_cleanup": 80.0,
+    "smoke_client_each_phase": 85
+  },
+  "working_tree_dirty": true,
+  "source_sha256": {
+    "app/services/llm_client.py": "8eb326dda526b6194a033aeb7c4f460baf37736f3b2328018a93966d90ccdfb6",
+    "app/services/workflow.py": "6ebc63258a60b9d9a188d36ef0be23c474dd6f805ef50a860e03279fb3f20c14",
+    "app/services/reviews.py": "f969288b32858df7aecc65d891c3f9a40e54e852b0af84f6eef07758a7b16f9e",
+    "smoke_a07.py": "d7207ff43741db3f7e9925b11f9eb09dbe939fa35df4599587f11500cfe94169"
+  },
+  "stages": [
+    {
+      "stage": "create",
+      "http_status": 201,
+      "duration_seconds": 0.078,
+      "response": {
+        "data": {
+          "project_id": "bc7ae9eb-ab8c-4a2f-a5c7-962b8c0482d4",
+          "status": "draft"
+        }
+      }
+    },
+    {
+      "stage": "real_plan",
+      "http_status": 502,
+      "duration_seconds": 11.828,
+      "response": {
+        "error": {
+          "code": "LLM_UPSTREAM_ERROR",
+          "message": "模型服务暂时不可用，请检查配置或稍后手动重试。",
+          "fields": {},
+          "run_id": "8f81df5b-d0c2-4790-9f65-1424877295a1"
+        }
+      }
+    }
+  ],
+  "checks": {},
+  "model_calls": [
+    {
+      "model": "gpt-6.1-sol",
+      "started_at": "2026-10-11T02:28:49.092090+00:00",
+      "duration_seconds": 11.799,
+      "success": false,
+      "http_status": null,
+      "token_usage": null,
+      "error_code": "LLM_UPSTREAM_ERROR"
+    }
+  ],
+  "success": false,
+  "project_input": {
+    "name": "TEST 真实模型验收：校园 PPT 美化服务",
+    "idea": "为大学生提供低成本 PPT 排版与视觉美化服务；本项目用于程序验收，不代表已有订单或真实试用。",
+    "target_users": "需要课堂展示、答辩或社团汇报的学生",
+    "skills": "Python、AI 辅助设计、PPT 制作",
+    "budget_cny": 50,
+    "validation_goal": "验证需求、可接受价格和试用意愿",
+    "data_kind": "test"
+  },
+  "project_id": "bc7ae9eb-ab8c-4a2f-a5c7-962b8c0482d4",
+  "failure": {
+    "type": "RuntimeError",
+    "stage": "real_plan"
+  },
+  "runs": [
+    {
+      "id": "8f81df5b-d0c2-4790-9f65-1424877295a1",
+      "project_id": "bc7ae9eb-ab8c-4a2f-a5c7-962b8c0482d4",
+      "action": "plan",
+      "status": "failed",
+      "started_at": "2026-10-11T02:28:49.078180+00:00",
+      "finished_at": "2026-10-11T02:29:00.892141+00:00",
+      "error_code": "LLM_UPSTREAM_ERROR",
+      "error_message": "模型服务暂时不可用，请检查配置或稍后手动重试。",
+      "tool_calls": [
+        {
+          "id": "6f01b2ed-847a-4567-b689-fd93aa7e8565",
+          "run_id": "8f81df5b-d0c2-4790-9f65-1424877295a1",
+          "tool_name": "make_validation_plan",
+          "status": "failed",
+          "started_at": "2026-10-11T02:28:49.085134+00:00",
+          "finished_at": "2026-10-11T02:29:00.892141+00:00",
+          "error_code": "LLM_UPSTREAM_ERROR",
+          "input_summary": {
+            "project_id": "bc7ae9eb-ab8c-4a2f-a5c7-962b8c0482d4",
+            "data_kind": "test",
+            "model": "gpt-6.1-sol",
+            "input_lengths": {
+              "name": 23,
+              "idea": 47,
+              "target_users": 17,
+              "skills": 21,
+              "validation_goal": 15
+            }
+          },
+          "output_ref": {
+            "model_call": {
+              "model": "gpt-6.1-sol",
+              "started_at": "2026-10-11T02:28:49.092090+00:00",
+              "duration_seconds": 11.799,
+              "success": false,
+              "http_status": null,
+              "token_usage": null,
+              "error_code": "LLM_UPSTREAM_ERROR"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "failed_runs": 1,
+  "model_stage_attempt_count": 1,
+  "model_stage_failure_count": 1,
+  "model_call_failure_count": 1,
+  "duration_seconds": 12.375,
+  "finished_at": "2026-10-11T02:29:01.138647+00:00",
+  "check_pass_count": 0,
+  "check_fail_count": 0
+}

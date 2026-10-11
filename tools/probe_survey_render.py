@@ -73,6 +73,24 @@ def main() -> int:
     }
     summary = {"rendered": str(target), "is_preview": preview, "markers": markers,
                "bytes": len(html)}
+    # 顺带渲染工作台（已发布态），供 probe_workspace_js.mjs 使用
+    ws_template = env.get_template("workspace.html")
+    project = {"id": "p-1", "name": "校园活动报名网站服务", "idea": "为校园社团制作低成本活动报名网页。",
+               "target_users": "社团负责人", "skills": "基础网页开发", "budget_cny": 100.0,
+               "validation_goal": "验证是否有试用需求", "data_kind": "test",
+               "created_at": "2026-10-10T00:45:14+00:00", "status": "collecting"}
+    experiment = {"id": "exp-1", "project_id": "p-1", "landing": LANDING, "questions": QUESTIONS,
+                  "published_at": "2026-10-11T01:00:00+00:00",
+                  "service_url": "http://testserver/e/" + TOKEN,
+                  "survey_url": "http://testserver/e/" + TOKEN + "/survey"}
+    ws_html = ws_template.render(project=project, plan=None, experiment=experiment,
+                                 latest_report_meta=None, running_run_id=None)
+    ws_target = out_dir / "workspace_published.html"
+    ws_target.write_text(ws_html, encoding="utf-8")
+    summary["workspace"] = {"rendered": str(ws_target), "bytes": len(ws_html),
+                            "has_config": "__FO_WORKSPACE__" in ws_html,
+                            "has_statistics_body": 'data-testid="statistics-body"' in ws_html}
+
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     expected = {key: True for key in markers}
     expected["提交按钮被禁用"] = preview

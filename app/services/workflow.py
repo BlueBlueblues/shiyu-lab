@@ -19,8 +19,8 @@ from app.services.planning import generate_plan
 from app.services.reviews import generate_review
 from app.services.statistics import calculate_statistics
 
-WORKFLOW_SECONDS = 60.0
-MODEL_SECONDS = 40.0
+WORKFLOW_SECONDS = 80.0
+MODEL_SECONDS = 60.0
 ERRORS = {
     **LLM_ERRORS,
     "NOT_FOUND": (404, "项目或运行记录不存在。"),
@@ -109,7 +109,7 @@ def create_experiment(project_id: str, plan: Plan, settings: Settings,
 
 def run_plan(project_id: str, settings: Settings) -> dict:
     cleanup_deadline = time.monotonic() + WORKFLOW_SECONDS
-    # 在 60 秒总预算内预留失败日志事务时间，避免耗尽预算后才尝试清理。
+    # 总预算内预留 5 秒失败清理；模型等待以外仍留出校验与写事务时间。
     deadline = cleanup_deadline - min(5.0, WORKFLOW_SECONDS / 2)
     run_id = str(uuid4())
     try:

@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 
 const source = fs.readFileSync('app/static/app.js', 'utf8').replace(
-  '}());', 'window.probe = {validateProject, beijingTime, initProjectNewPage, initWorkspacePage}; }());');
+  '}());', 'window.probe = {validateProject, beijingTime, initProjectNewPage, initWorkspacePage, request}; }());');
 let passed = 0;
 function check(name, ok) { assert.ok(ok, name); console.log('PASS ' + name); passed++; }
 class Node {
@@ -33,7 +33,10 @@ function page(detail) {
     createTextNode: text => { const n = new Node(); n.textContent = text; return n; }
   };
   const sandbox = { document, AbortController, Intl, Date, console,
-    window: { setTimeout, clearTimeout, confirm: () => true, location: { pathname: '/projects/p1' } },
+    window: { setTimeout, clearTimeout, confirm: () => true,
+      __FO_WORKSPACE__: detail ? { projectId: detail.project.id, experimentId: detail.experiment?.id,
+        published: Boolean(detail.experiment?.published_at), questions: detail.experiment?.questions || [] } : {},
+      location: { pathname: '/projects/p1', reload() { this.reloads = (this.reloads || 0) + 1; } } },
     fetch: async (url, init) => {
       requests.push({ url, init });
       const reply = replies.shift() || { data: url.endsWith('/runs') ? [] : detail };
@@ -42,7 +45,8 @@ function page(detail) {
     }
   };
   vm.runInNewContext(source, sandbox);
-  return { ...sandbox, nodes, node, requests, replies, form, api: sandbox.window.probe };
+  return { ...sandbox, nodes, node, requests, replies, form, api: sandbox.window.probe,
+    setFetch(fn) { sandbox.fetch = fn; } };
 }
 const flush = () => new Promise(resolve => setTimeout(resolve, 20));
 const p = page();
@@ -71,24 +75,35 @@ const detail = { project: { id: 'p1', name: '测试', status: 'planned', data_ki
 const ws = page(detail);
 ws.api.initWorkspacePage(ws.document);
 await flush();
-check('工作台读取项目详情与运行列表', ws.requests.map(r => r.url).join(',') === '/api/projects/p1,/api/projects/p1/runs');
-check('工作台测试样例标记可见', ws.node('test-badge').hidden === false);
-check('草稿操作与编辑预览入口', !ws.node('plan-generate').disabled && !ws.node('experiment-publish').hidden
-  && ws.node('draft-edit').attrs.href === '/experiments/e1/edit');
+check('服务端首屏只读取运行列表', ws.requests.map(r => r.url).join(',') === '/api/projects/p1/runs');
+check('草稿不请求统计与原始回答', ws.requests.every(r => !/statistics|responses/.test(r.url)));
 ws.replies.push({ error: { code: 'RUN_IN_PROGRESS' } }, { data: { ...detail, running_run_id: 'running' } }, { data: [] });
 ws.node('plan-generate').handlers.click();
 await flush();
-check('生成请求使用正式 API 与空对象', ws.requests[2].url === '/api/projects/p1/plan' && ws.requests[2].init.body === '{}');
+check('生成请求使用正式 API 与空对象', ws.requests[1].url === '/api/projects/p1/plan' && ws.requests[1].init.body === '{}');
 check('任务冲突后刷新状态并保持禁用', ws.node('plan-generate').disabled && ws.node('experiment-publish').disabled);
 const published = { ...detail, experiment: { ...detail.experiment, published_at: '2026-10-11T00:00:00Z', service_url: 'http://testserver/e/token', survey_url: 'http://testserver/e/token/survey' } };
 const pub = page(detail);
 pub.api.initWorkspacePage(pub.document);
 await flush();
-pub.replies.push({ data: { survey_url: published.experiment.survey_url } }, { data: published });
+pub.replies.push({ data: { survey_url: published.experiment.survey_url } });
 pub.node('experiment-publish').handlers.click();
 await flush();
-check('发布请求使用正式 API 与空对象', pub.requests[2].url === '/api/experiments/e1/publish' && pub.requests[2].init.body === '{}');
-check('发布后展示后端链接并锁定操作', pub.node('survey-url').textContent === published.experiment.survey_url
-  && pub.node('experiment-publish').hidden && pub.node('experiment-publish').disabled && pub.node('plan-generate').disabled);
-check('管理探针未请求统计或复盘', [...ws.requests, ...pub.requests].every(r => !/statistics|responses|review|report/.test(r.url)));
+check('发布请求使用正式 API 与空对象', pub.requests[1].url === '/api/experiments/e1/publish' && pub.requests[1].init.body === '{}');
+check('发布成功重载正式服务端工作台', pub.window.location.reloads === 1 && pub.node('experiment-publish').disabled);
+check('禁用的复盘入口未发出请求', [...ws.requests, ...pub.requests].every(r => !/review|report/.test(r.url)));
+
+// Response-body waits stay inside the deadline after headers have arrived.
+const timed = page();
+let deadline, cleared = false;
+timed.window.setTimeout = (callback, ms) => { deadline = { callback, ms }; return 1; };
+timed.window.clearTimeout = () => { cleared = true; };
+timed.setFetch(async (_url, init) => ({ ok: true, status: 200,
+  text: () => new Promise((_resolve, reject) => init.signal.addEventListener('abort',
+    () => reject(Object.assign(new Error('controlled abort'), { name: 'AbortError' })))) }));
+const waiting = timed.api.request('GET', '/controlled', undefined, { admin: true }).catch(e => e);
+await flush();
+check('管理 90 秒期限覆盖响应体读取', deadline.ms === 90000 && !cleared);
+deadline.callback();
+check('响应体超时映射 TIMEOUT 并清理定时器', (await waiting).code === 'TIMEOUT' && cleared);
 console.log(`结果：${passed} 项通过，0 项失败`);

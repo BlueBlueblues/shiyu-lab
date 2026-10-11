@@ -1,0 +1,124 @@
+{
+  "target_customer": "有活动组织经验的社团负责人",
+  "pain_points": [
+    "报名信息汇总耗时",
+    "活动通知与报名分散在多个聊天工具里"
+  ],
+  "value_proposition": "提供简单、可维护的活动报名网页",
+  "hypotheses": [
+    {
+      "id": "h1",
+      "statement": "部分社团组织者存在报名信息整理困难",
+      "question_ids": [
+        "q1"
+      ]
+    },
+    {
+      "id": "h2",
+      "statement": "部分组织者愿意了解并使用定制的活动报名网页",
+      "question_ids": [
+        "q2"
+      ]
+    },
+    {
+      "id": "h3",
+      "statement": "组织者能具体指出当前报名流程的改进点",
+      "question_ids": [
+        "q3"
+      ]
+    }
+  ],
+  "experiment_steps": [
+    "邀请有活动组织经验的同学填写问卷",
+    "按实际回答复盘，不预设结论"
+  ],
+  "next_tasks": [
+    "人工检查问卷措辞是否诱导回答",
+    "确认参与者在自己的设备上独立完成填写"
+  ],
+  "landing": {
+    "title": "校园活动报名网页服务",
+    "summary": "面向社团组织者的服务需求验证",
+    "target_users": "社团负责人与活动组织者",
+    "value_proposition": "简化报名信息收集与整理",
+    "features": [
+      "定制活动介绍页",
+      "报名信息整理与导出",
+      "手机端填写"
+    ],
+    "disclaimer": "目前为需求验证阶段，不代表已有商业成交或完整服务上线。"
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "type": "single",
+      "title": "你是否遇到过活动报名信息难以整理的情况？",
+      "required": true,
+      "options": [
+        {
+          "id": "o1",
+          "label": "经常遇到"
+        },
+        {
+          "id": "o2",
+          "label": "偶尔遇到"
+        },
+        {
+          "id": "o3",
+          "label": "没有遇到"
+        }
+      ]
+    },
+    {
+      "id": "q2",
+      "type": "single",
+      "title": "你是否愿意了解或试用定制的活动报名网页？",
+      "required": true,
+      "options": [
+        {
+          "id": "o1",
+          "label": "愿意"
+        },
+        {
+          "id": "o2",
+          "label": "不确定"
+        },
+        {
+          "id": "o3",
+          "label": "不愿意"
+        }
+      ]
+    },
+    {
+      "id": "q3",
+      "type": "text",
+      "title": "你目前的报名流程有什么问题？",
+      "required": false,
+      "options": []
+    },
+    {
+      "id": "q4",
+      "type": "multiple",
+      "title": "你最关心哪些功能？",
+      "required": false,
+      "options": [
+        {
+          "id": "o1",
+          "label": "手机使用方便"
+        },
+        {
+          "id": "o2",
+          "label": "信息导出"
+        },
+        {
+          "id": "o3",
+          "label": "操作简单"
+        },
+        {
+          "id": "o4",
+          "label": "暂时无需求"
+        }
+      ]
+    }
+  ]
+}

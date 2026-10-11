@@ -1,0 +1,62 @@
+{
+  "summary": "本次样本量很小，只能作为探索性证据；组织者对报名信息整理存在一定困难，对试用定制网页的意向尚不明确。",
+  "hypothesis_assessments": [
+    {
+      "hypothesis_id": "h1",
+      "status": "preliminary_support",
+      "reason": "多数作答者选择“经常遇到”或“偶尔遇到”，说明整理困难在本样本中较为普遍。",
+      "evidence_refs": [
+        {
+          "question_id": "q1",
+          "option_id": "o1"
+        },
+        {
+          "question_id": "q1",
+          "option_id": "o2"
+        }
+      ]
+    },
+    {
+      "hypothesis_id": "h2",
+      "status": "insufficient_evidence",
+      "reason": "愿意与不确定各占一半，样本量不足以判断试用意向。",
+      "evidence_refs": [
+        {
+          "question_id": "q2",
+          "option_id": "o1"
+        },
+        {
+          "question_id": "q2",
+          "option_id": "o2"
+        }
+      ]
+    },
+    {
+      "hypothesis_id": "h3",
+      "status": "preliminary_support",
+      "reason": "部分作答者给出了具体的流程问题描述。",
+      "evidence_refs": []
+    }
+  ],
+  "key_feedback": [
+    "报名信息分散在聊天记录里，统计人数要手工数",
+    "希望能直接导出名单"
+  ],
+  "limitations": [
+    "回答份数少于 5 份，属于探索性样本，不能代表校园总体",
+    "本次只验证需求与意向，未验证付费意愿，也没有任何成交证据",
+    "自愿填写可能引入选择偏差"
+  ],
+  "next_actions": [
+    {
+      "action": "邀请 2～3 位实际组织过活动的同学补充填写并做简短访谈",
+      "owner_role": "实验执行",
+      "completion_criterion": "新增至少 2 份有效回答，并记录访谈要点"
+    },
+    {
+      "action": "根据反馈把问卷中含糊的措辞改清楚，下一轮项目重新发布",
+      "owner_role": "产品",
+      "completion_criterion": "新一轮项目草稿通过人工检查并发布"
+    }
+  ]
+}

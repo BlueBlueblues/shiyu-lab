@@ -1,0 +1,99 @@
+{
+  "commit": "532b225b84adcfd37aebd68c64bf1c4f9792ad8a",
+  "started_at": "2026-10-11T01:57:57.767549+00:00",
+  "provider": "www.cctq.ai",
+  "base_url": "https://www.cctq.ai/v1",
+  "evidence_dir": "D:\\AI+比赛\\firstorder-lab\\docs\\model-verification\\20261011T015757Z-a015c852",
+  "isolated_temporary_database": true,
+  "provider_host": "www.cctq.ai",
+  "model": "gpt-6.1-sol",
+  "data_kind": "test",
+  "real_user_trial": false,
+  "transport": "real TCP HTTP",
+  "stages": [
+    {
+      "stage": "create",
+      "http_status": 201,
+      "duration_seconds": 0.062,
+      "response": {
+        "data": {
+          "project_id": "3120eddb-911b-453d-b871-4b30cc5d2654",
+          "status": "draft"
+        }
+      }
+    },
+    {
+      "stage": "real_plan",
+      "http_status": 504,
+      "duration_seconds": 40.047,
+      "response": {
+        "error": {
+          "code": "LLM_TIMEOUT",
+          "message": "模型请求超时，请手动重试。",
+          "fields": {},
+          "run_id": "890b3119-8ab8-4cfe-be51-cb32e8e24bb0"
+        }
+      }
+    }
+  ],
+  "checks": {},
+  "model_calls": [],
+  "success": false,
+  "project_input": {
+    "name": "TEST 真实模型验收：校园 PPT 美化服务",
+    "idea": "为大学生提供低成本 PPT 排版与视觉美化服务；本项目用于程序验收，不代表已有订单或真实试用。",
+    "target_users": "需要课堂展示、答辩或社团汇报的学生",
+    "skills": "Python、AI 辅助设计、PPT 制作",
+    "budget_cny": 50,
+    "validation_goal": "验证需求、可接受价格和试用意愿",
+    "data_kind": "test"
+  },
+  "project_id": "3120eddb-911b-453d-b871-4b30cc5d2654",
+  "failure": {
+    "type": "RuntimeError",
+    "stage": "real_plan"
+  },
+  "runs": [
+    {
+      "id": "890b3119-8ab8-4cfe-be51-cb32e8e24bb0",
+      "project_id": "3120eddb-911b-453d-b871-4b30cc5d2654",
+      "action": "plan",
+      "status": "failed",
+      "started_at": "2026-10-11T01:57:58.083892+00:00",
+      "finished_at": "2026-10-11T01:58:38.110611+00:00",
+      "error_code": "LLM_TIMEOUT",
+      "error_message": "模型请求超时，请手动重试。",
+      "tool_calls": [
+        {
+          "id": "f64fd342-3965-45be-9cd1-17fe28f43b5b",
+          "run_id": "890b3119-8ab8-4cfe-be51-cb32e8e24bb0",
+          "tool_name": "make_validation_plan",
+          "status": "failed",
+          "started_at": "2026-10-11T01:57:58.089892+00:00",
+          "finished_at": "2026-10-11T01:58:38.110611+00:00",
+          "error_code": "LLM_TIMEOUT",
+          "input_summary": {
+            "project_id": "3120eddb-911b-453d-b871-4b30cc5d2654",
+            "data_kind": "test",
+            "model": "gpt-6.1-sol",
+            "input_lengths": {
+              "name": 23,
+              "idea": 47,
+              "target_users": 17,
+              "skills": 21,
+              "validation_goal": 15
+            }
+          },
+          "output_ref": null
+        }
+      ]
+    }
+  ],
+  "failed_runs": 1,
+  "model_call_failure_count": null,
+  "duration_seconds": 40.562,
+  "finished_at": "2026-10-11T01:58:38.329467+00:00",
+  "model_stage_attempt_count": 1,
+  "model_stage_failure_count": 1,
+  "evidence_annotation": "Post-run clarification: absent CallInfo means unknown upstream result; stage counts derived from recorded HTTP statuses. No additional model requests."
+}

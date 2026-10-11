@@ -127,13 +127,12 @@ def run_checks() -> int:
         if response.status_code == 200:
             html = response.text
             for marker in ('data-testid="plan-generate"', 'data-testid="run-log"',
-                           'data-testid="experiment-publish"', 'data-testid="service-url"',
-                           'data-testid="survey-url"', 'data-testid="project-status"',
+                           'data-testid="experiment-publish"', 'data-testid="links-empty"', 'data-testid="project-status"',
                            'data-testid="project-meta"'):
                 check("  含 %s" % marker, marker in html)
-            check("  统计/复盘按钮明确禁用",
+            check("  复盘页面入口明确禁用",
                   all(('data-testid="%s" disabled' % t) in html
-                      for t in ("response-count", "review-generate", "report-content", "report-download")))
+                      for t in ("review-generate", "report-content", "report-download")))
 
         check("不存在的项目 404", client.get("/projects/no-such-id").status_code == 404)
 

@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from app.db import connect_db
 from app.main import create_app
 from app.services import workflow
+from app.services.reviews import PROMPT
 from test_a05 import setup, admin, publish, body
 
 
@@ -214,6 +215,20 @@ def test_report_page_context_and_empty(client, setup, tmp_path, monkeypatch, mod
     assert client.get("/projects/missing/report", **admin(setup)).status_code == 404
 
 
+@pytest.mark.parametrize("requirement", [
+    "统计单位使用“回答份数”，不能等同独立回答人数。",
+    "对回答者意图的描述必须有原始回答依据",
+    "data_kind=test 只能称为受控测试文本或样例，不能暗示真实回答者的意图。",
+    "价格与购买意愿必须分开提问，“不确定”作为独立意愿选项。",
+    "不得补造或重新归类原始回答",
+    "每项 completion_criterion 必须包含可核验的量化完成标准，明确数量及期限；比例阈值须明确分母。",
+    "必须标为“待确认建议”，并要求人工确认，不冒充用户已约定或已预先设定",
+])
+def test_review_prompt_quality_requirements(requirement):
+    # 检查提示词约束，不将 Mock 输出当作真实模型语义质量证据。
+    assert requirement in PROMPT.read_text(encoding="utf-8")
+
+
 def test_prompt_separates_external_feedback(client, setup, model):
     publish(client, setup)
     payload = body()
@@ -222,6 +237,7 @@ def test_prompt_separates_external_feedback(client, setup, model):
     assert review(client, setup).status_code == 200
     messages = model.call_args.kwargs["json"]["messages"]
     assert messages[0]["role"] == "system" and "外部数据" in messages[0]["content"]
+    assert messages[0]["content"] == PROMPT.read_text(encoding="utf-8")
     assert payload["answers"]["q3"] not in messages[0]["content"]
     assert payload["answers"]["q3"] in messages[1]["content"]
 

@@ -132,7 +132,7 @@ def test_success_creates_consistent_plan_draft_and_real_logs(client, settings, p
     model.assert_called_once()
     messages = model.call_args.kwargs["json"]["messages"]
     assert json.loads(messages[1]["content"]) == payload
-    assert model.call_args.kwargs["timeout"] == 40.0
+    assert model.call_args.kwargs["timeout"] == 60.0
     project_detail = client.get(f"/api/projects/{project_id}").json()["data"]
     assert project_detail["project"]["status"] == "planned" and project_detail["running_run_id"] is None
     assert project_detail["experiment"]["service_url"] is None
