@@ -1,0 +1,105 @@
+{#
+  新建项目页：GET /projects/new            （管理端）
+
+  A 传入的 context：无。本页不需要任何服务端变量。
+
+  字段与总纲 §7.1 / app/schemas.py ProjectCreate 严格一致（额外字段会被 422 extra_forbidden）：
+    name            必填 1..80   去首尾空白后不得为空
+    idea            必填 1..2000
+    target_users    必填 1..500
+    skills          必填 1..500
+    budget_cny      必填 数值 0..100000（可为 0）
+    validation_goal 必填 1..500
+    data_kind       必填 real | test（test 用于程序测试/演示样例，页面必须显式标注）
+
+  提交：POST /api/projects（管理写请求，app.js 自动带 X-Requested-With）
+  成功：读 data.project_id，跳转 /projects/{project_id}
+#}
+{% extends "base.html" %}
+{% block title %}新建项目{% endblock %}
+{% block body_class %}page-admin page-project-new{% endblock %}
+
+{% block nav %}
+  <nav class="site-nav">
+    <span class="nav-note">个人项目空间</span>
+    <a href="/projects" data-testid="nav-projects">项目列表</a>
+  </nav>
+{% endblock %}
+
+{% block content %}
+{% include "_agent_intro.html" %}
+<section class="card">
+  <p class="step-hint" data-testid="new-step-hint">第 1 步 / 共 4 步 · 说清你的想法</p>
+  <h1>开始一次 AI 验证</h1>
+  <p class="muted">
+    用一段话把想法讲清楚就够了：<strong>为谁</strong>、<strong>解决什么问题</strong>、<strong>你想验证什么</strong>。
+    填完创建项目后进入工作台，由识玉独立形成创业假设，再由琢玉独立设计验证方法、落地页和问卷。你审核后再发布。
+    带 <span class="required-mark">*</span> 的为必填。
+  </p>
+
+  <form id="project-form" data-testid="project-form" novalidate>
+    <div class="field">
+      <label for="project-name">项目名称 <span class="required-mark">*</span></label>
+      <input type="text" id="project-name" name="name" data-testid="project-name"
+             maxlength="80" autocomplete="off" required>
+      <p class="muted">最多 80 字。例如：校园活动报名网页服务。</p>
+    </div>
+
+    <div class="field">
+      <label for="project-idea">想验证的想法 <span class="required-mark">*</span></label>
+      <textarea id="project-idea" name="idea" data-testid="project-idea" rows="5"
+                maxlength="2000" required></textarea>
+      <p class="muted">最多 2000 字。说明你想为谁做什么、解决什么问题。</p>
+    </div>
+
+    <div class="field">
+      <label for="project-target-users">目标用户 <span class="required-mark">*</span></label>
+      <input type="text" id="project-target-users" name="target_users"
+             data-testid="project-target-users" maxlength="500" required>
+    </div>
+
+    <div class="field">
+      <label for="project-skills">团队现有能力 <span class="required-mark">*</span></label>
+      <input type="text" id="project-skills" name="skills"
+             data-testid="project-skills" maxlength="500" required>
+    </div>
+
+    <div class="field">
+      <label for="project-budget">预算（元） <span class="required-mark">*</span></label>
+      <input type="number" id="project-budget" name="budget_cny" data-testid="project-budget"
+             min="0" max="100000" step="1" value="100" required>
+      <p class="muted">0～100000，可以是 0。这里是计划投入，不是已发生成本。</p>
+    </div>
+
+    <div class="field">
+      <label for="project-validation-goal">验证目标 <span class="required-mark">*</span></label>
+      <input type="text" id="project-validation-goal" name="validation_goal"
+             data-testid="project-validation-goal" maxlength="500" required
+             placeholder="例如：验证是否有试用需求，以及用户最关心哪些功能">
+      <p class="muted">placeholder 只是示例，不会当成已填写内容。</p>
+    </div>
+
+    <div class="field">
+      <label for="project-data-kind">数据用途 <span class="required-mark">*</span></label>
+      <select id="project-data-kind" name="data_kind" data-testid="project-data-kind" required>
+        <option value="real" selected>真实实验（回答来自真实用户）</option>
+        <option value="test">测试样例（程序测试/演示，不计入真实成果）</option>
+      </select>
+      <p class="muted">创建后不能把 test 改成 real。测试样例在页面与报告里都会被标注。</p>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="button button-primary button-lg" data-testid="project-create">
+        创建项目并继续
+      </button>
+      <span class="form-status" data-testid="project-status" role="status" aria-live="polite"></span>
+    </div>
+    <p class="muted">
+      创建后会进入工作台；在那里点「生成验证方案」调用模型。
+    </p>
+
+    {# app.js 把 422 的 error.fields 写进这个容器，字段级错误不会丢 #}
+    <div class="field-errors" data-testid="field-errors" hidden></div>
+  </form>
+</section>
+{% endblock %}

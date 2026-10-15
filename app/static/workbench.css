@@ -1,0 +1,291 @@
+/* ==========================================================================
+   试玉 · 四阶段工作台皮肤（B 交付）
+   用途：把既有工作台页面重构成「总览 + 识玉 / 琢玉 / 鉴玉 / 攻玉」四阶段视图。
+   纪律：
+     - 只作用于 body.page-workspace，不影响公开页与其它管理页；
+     - 不改 app.css / base.html（C 的文件）；本文件与其并存，靠更高优先级覆盖；
+     - 品牌名不写死在这里，页头仍用 base.html 的品牌。
+   ========================================================================== */
+
+body.page-workspace {
+  --sy-paper: #f7f5f0;
+  --sy-jade: #2b6e63;
+  --sy-jade-dark: #1f5a50;
+  --sy-ink: #1f3a3d;
+  --sy-text: #222827;
+  --sy-muted: #5c6866;
+  --sy-line: #d2dfdb;
+  --sy-soft: #eff5f3;
+  --sy-warn: #8c5811;
+  --sy-warn-bg: #fdf6e9;
+  --sy-serif: "Songti SC", "Noto Serif SC", "STSong", "SimSun", serif;
+  --sy-radius: 12px;
+
+  background: var(--sy-paper);
+  color: var(--sy-text);
+}
+
+body.page-workspace .site-header {
+  background: #fff;
+  border-bottom: 1px solid var(--sy-line);
+}
+
+body.page-workspace .site-main { max-width: 1040px; }
+
+/* 宋韵标题：衬线 + 墨色 */
+body.page-workspace .card > h1,
+body.page-workspace .sy-view-title {
+  font-family: var(--sy-serif);
+  font-weight: 600;
+  color: var(--sy-ink);
+  letter-spacing: 0.01em;
+}
+
+body.page-workspace .card {
+  background: #fff;
+  border: 1px solid var(--sy-line);
+  border-radius: var(--sy-radius);
+}
+
+body.page-workspace .card h2 {
+  font-size: 17px;
+  color: var(--sy-ink);
+}
+
+body.page-workspace .muted { color: var(--sy-muted); }
+body.page-workspace a { color: var(--sy-jade); }
+
+/* ---------- 阶段导航 ---------- */
+
+.sy-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.sy-back {
+  border: 0;
+  background: none;
+  padding: 6px 0;
+  color: var(--sy-jade);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.sy-round { color: var(--sy-muted); font-size: 14px; }
+
+.sy-stages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--sy-line);
+  position: sticky;
+  top: 0;
+  background: var(--sy-paper);
+  z-index: 10;
+  padding-top: 10px;
+}
+
+.sy-stage {
+  position: relative;
+  min-height: 74px;
+  padding: 12px 8px;
+  border: 1px solid var(--sy-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--sy-muted);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.sy-stage strong { display: block; font-size: 17px; color: var(--sy-ink); }
+.sy-stage span { font-size: 12px; }
+
+.sy-stage:hover { border-color: #a9c8c0; }
+.sy-stage[aria-current="step"] {
+  border: 2px solid var(--sy-jade);
+  padding: 11px 7px;
+  background: var(--sy-soft);
+}
+.sy-stage[aria-current="step"] strong { color: var(--sy-jade); }
+.sy-stage.sy-done strong::after { content: " ✓"; font-family: sans-serif; font-size: 13px; }
+.sy-stage.sy-waiting { border-color: #e4cfa5; background: var(--sy-warn-bg); }
+.sy-stage.sy-waiting span { color: var(--sy-warn); }
+
+/* ---------- 视图切换 ----------
+   注意：只有 JS 就绪（body 上有 sy-ready）时才隐藏非当前阶段。
+   若脚本未加载或报错，全部区块照常显示，页面不会变成空白 —— 这是刻意的降级设计。 */
+
+body.page-workspace.sy-ready [data-stage] { display: none; }
+body.page-workspace.sy-ready.sy-view-overview [data-stage="overview"],
+body.page-workspace.sy-ready.sy-view-shiyu   [data-stage="shiyu"],
+body.page-workspace.sy-ready.sy-view-zhuoyu   [data-stage="zhuoyu"],
+body.page-workspace.sy-ready.sy-view-jianyu   [data-stage="jianyu"],
+body.page-workspace.sy-ready.sy-view-gongyu   [data-stage="gongyu"] { display: block; }
+
+/* 总览里保留原进度条，作为四阶段的紧凑指示。
+   注意：JS 就绪后 sy-stages 是唯一可见导航，服务端进度条只留 DOM 作为状态来源（R1）。 */
+body.page-workspace.sy-ready [data-stage="overview"] .ws-steps { margin-bottom: 16px; }
+
+body.page-workspace.sy-ready .ws-steps { display: none; }
+
+/* ---------- 主操作条（每个视图只有一个主操作）---------- */
+
+.sy-actionbar {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sy-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.sy-primary {
+  min-height: 46px;
+  padding: 12px 26px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sy-jade);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.sy-primary:hover:not(:disabled) { background: var(--sy-jade-dark); }
+.sy-primary:disabled { opacity: 0.48; cursor: not-allowed; }
+
+/* 关键修正：本文件上方有 `body.page-workspace a { color: var(--sy-jade); }`（特异性 0,1,2），
+   它会压过 `.sy-primary`（0,1,0），使「主操作」锚点的白字变成与底色相同的墨绿 → 看起来是个空块。
+   这里用更高特异性把白字夺回来（锚点形态与按钮形态都覆盖）。 */
+body.page-workspace a.sy-primary,
+body.page-workspace a.button-primary,
+body.page-workspace a.button-primary.sy-primary { color: #fff; }
+body.page-workspace a.button-primary:hover:not([aria-disabled="true"]) { color: #fff; }
+
+.sy-hint { color: var(--sy-muted); font-size: 14px; margin: 0; }
+
+/* ---------- 总览卡片 ---------- */
+
+.sy-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.sy-metric {
+  border: 1px solid var(--sy-line);
+  border-radius: 10px;
+  background: var(--sy-soft);
+  padding: 12px 14px;
+}
+.sy-metric span { display: block; font-size: 13px; color: var(--sy-muted); }
+.sy-metric b { font-size: 19px; color: var(--sy-ink); }
+
+.sy-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--sy-soft);
+  color: var(--sy-jade);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sy-badge.sy-waiting { background: var(--sy-warn-bg); color: var(--sy-warn); }
+
+.sy-eyebrow { font-size: 13px; color: var(--sy-muted); letter-spacing: 0.04em; }
+
+/* 只读回看提示（R2，由 workbench.js 在各阶段视图内注入 / 移出） */
+.sy-readonly {
+  border-left: 4px solid var(--sy-warn);
+  background: var(--sy-warn-bg);
+  color: var(--sy-warn);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+
+/* 只读视图内的写操作视觉降噪：仍可见可读，但不给出可点的错觉 */[data-stage].sy-readonly-view [data-sy-readonly-disabled]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* 锚点形态的写入口（编辑草稿 / 预览）没有 disabled，用 aria-disabled 表达同一语义 */
+[data-stage].sy-readonly-view a[data-sy-readonly-disabled][aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+/* ---------- 默认折叠的明细与工具（R3，原生 details，无需 JS） ---------- */
+
+body.page-workspace .sy-fold {
+  border: 1px solid var(--sy-line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 14px;
+  margin: 12px 0;
+}
+
+body.page-workspace .sy-fold > summary {
+  font-weight: 600;
+  color: var(--sy-ink);
+  cursor: pointer;
+}
+
+body.page-workspace .sy-fold[open] > summary { margin-bottom: 10px; }
+
+/* 展开后内部元素不再叠一层外边距 */
+body.page-workspace .sy-fold > :last-child { margin-bottom: 0; }
+
+body.page-workspace .sy-history {
+  border: 1px solid var(--sy-line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 14px;
+  margin-top: 14px;
+}
+
+body.page-workspace .sy-history > summary {
+  font-weight: 600;
+  color: var(--sy-ink);
+  cursor: pointer;
+}
+
+/* 总览「我在哪」信息区 */
+body.page-workspace .sy-where .sy-actionbar { margin-top: 14px; }
+body.page-workspace .sy-where .sy-metrics { margin: 12px 0 4px; }
+
+/* 实测与推断分块（鉴玉） */
+.sy-inference {
+  border-left: 4px solid var(--sy-jade);
+  background: var(--sy-soft);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+
+/* ---------- 窄屏 ---------- */
+
+@media (max-width: 600px) {
+  .sy-stage { padding: 10px 6px; min-height: 68px; }
+  .sy-stage[aria-current="step"] { padding: 9px 5px; }
+  .sy-stage strong { font-size: 16px; }
+  .sy-stages { gap: 5px; }
+  .sy-primary { width: 100%; }
+  .sy-metric b { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.page-workspace * { transition-duration: 0.01ms !important; }
+}

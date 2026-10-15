@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{# base.html 会在标题后追加品牌名，所以这里只写状态码，避免出现「404｜试玉 · SHIYU LAB｜试玉 · SHIYU LAB」。 #}
+{% block title %}{{ status_code }}{% endblock %}
+{% block body_class %}page-error{% endblock %}
+
+{% block content %}
+<section class="card">
+  <p class="sy-eyebrow">出错了</p>
+  <h1 class="section-title">{{ status_code }}</h1>
+  <p class="lead-line">{{ message }}</p>
+  {# 说清「你手上的链接是哪一种」，并给出下一步；不把内部错误码甩给用户。 #}
+  {% if status_code == 404 %}
+  <p class="detail-text muted">如果你是从别人发来的链接进来的，可能是链接不完整、实验还没发布，或者这份问卷已经下架。请向发链接的人确认一下最新地址。</p>
+  {% elif status_code == 429 %}
+  <p class="detail-text muted">短时间内请求太多，稍等一会儿再试即可。你的账号和数据都没有受影响。</p>
+  {% elif status_code == 503 %}
+  <p class="detail-text muted">服务正在短暂维护：AI 任务暂时不可用，但登录、注册和已保存的证据仍然可以使用。</p>
+  {% else %}
+  <p class="detail-text muted">稍后重试通常就能恢复。如果一直这样，请把本页的编号告诉管理员。</p>
+  {% endif %}
+  <div class="sy-actionbar">
+    <a class="button button-primary" href="/">回到首页</a>
+    <a class="button button-ghost" href="/projects">我的项目</a>
+  </div>
+</section>
+{% endblock %}

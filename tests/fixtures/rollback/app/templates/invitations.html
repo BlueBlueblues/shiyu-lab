@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}邀请用户{% endblock %}
+{% block body_class %}page-admin page-invitations{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>邀请用户</h1>
+  {% if not registration_open %}<p class="notice notice-warn">邀请注册暂未开放，请在开放后再发放链接。</p>{% endif %}
+  <p>生成一个只能注册一次的邀请链接，发给你想邀请的人。对方仍需验证邮箱。</p>
+  <form data-testid="invitation-form">
+    <div class="field">
+      <label for="expires-hours">有效时间（小时）</label>
+      <input id="expires-hours" name="expires_hours" type="number" min="1" max="8760" step="1" value="24" required>
+    </div>
+    <button type="submit" class="button button-primary" data-testid="invitation-create">生成邀请链接</button>
+    <p class="form-status" data-testid="invitation-status" role="status" aria-live="polite"></p>
+  </form>
+  <div data-testid="invitation-result" hidden>
+    <div class="field">
+      <label for="invitation-link">邀请链接</label>
+      <input id="invitation-link" data-testid="invitation-link" type="text" readonly>
+    </div>
+    <button type="button" class="button button-ghost" data-testid="invitation-copy">复制链接</button>
+    <a class="button button-ghost" data-testid="invitation-open" target="_blank" rel="noopener noreferrer">打开注册页</a>
+    <p class="form-status" data-testid="invitation-copy-status" role="status" aria-live="polite"></p>
+    <p class="muted">完整链接只在生成时提供；刷新后不能重新取回。请及时发给指定的人。</p>
+  </div>
+</section>
+<section class="card">
+  <h2>邀请记录</h2>
+  <button class="button button-ghost" type="button" data-testid="invitation-refresh">刷新记录</button>
+  <p class="muted">显示最近 100 条记录。已使用、已过期或已撤销的邀请不能继续注册。</p>
+  <p class="form-status" data-testid="invitation-list-status" role="status" aria-live="polite"></p>
+  <div data-testid="invitation-list"></div>
+</section>
+{% endblock %}

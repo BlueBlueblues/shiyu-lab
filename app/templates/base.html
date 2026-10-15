@@ -1,0 +1,49 @@
+{#
+  公共布局模板（成员 B 职责，本次由 C 临时交付）
+  路由来源：app/main.py 的 Jinja2Templates(directory=app/templates)
+  说明：基础骨架只提供标题、样式、脚本与内容块。
+        管理导航只放在 nav block 里，公开页通过覆盖 nav block 留空来隐藏。
+#}<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}创业验证{% endblock %}｜试玉 · SHIYU LAB</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}?v=neo-song-1">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="site-header">
+    <a class="site-brand" href="/">试玉 · SHIYU LAB</a>
+    {% block nav %}{% endblock %}
+    {% if request is defined and request.state.current_user is defined and request.state.current_user and is_preview is not defined %}
+      <nav class="site-nav" aria-label="个人空间" data-testid="user-nav">
+        <a href="/profile">你好，{{ request.state.current_user.username }}</a>
+        <a href="/projects">我的项目</a>
+        <a href="/projects/new">创建项目</a>
+        {% if request.state.current_user.id is defined and request.state.current_user.id == invitation_admin_id %}
+        <a href="/admin/cases" data-testid="nav-cases">验证案例</a>
+        <a href="/admin/invitations" data-testid="nav-invitations">邀请用户</a>
+        {% endif %}
+        <button class="button button-ghost" type="button" data-testid="auth-logout">退出登录</button>
+        <span role="status" aria-live="polite" data-testid="logout-status"></span>
+      </nav>
+    {% endif %}
+  </header>
+
+  <main class="site-main">
+    {% if request is defined and request.app is defined and request.app.state.settings.app_env is defined and request.app.state.settings.app_env == 'test' %}
+    <p class="notice notice-warn" data-testid="isolated-demo-banner">隔离测试环境：演示数据不能作为真实用户或创业成效证据。{% if request.app.state.settings.llm_model == 'mock-demo-offline' %} 当前为本机模拟数据（Mock），没有调用真实 AI 模型。{% endif %}</p>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <p>试玉 · SHIYU LAB｜以试辨真，以攻成玉</p>
+    <p>需求验证工具｜本项目用于展示拟提供的服务，<strong>不代表已有商业成交</strong>。</p>
+  </footer>
+
+  <script src="{{ url_for('static', path='/app.js') }}" defer></script>
+</body>
+</html>

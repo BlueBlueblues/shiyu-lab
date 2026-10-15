@@ -1,0 +1,16 @@
+/* Temporary case reader: scoped additions to the shared Neo-Song theme. */
+.page-cases .case-agents { display:flex; gap:.5rem; flex-wrap:wrap; margin:1rem 0; }
+.page-cases .case-metrics { display:flex; flex-wrap:wrap; gap:1rem 2rem; margin:1.25rem 0; }
+.page-cases .case-metrics dt { color:var(--color-muted); font-size:.875rem; }
+.page-cases .case-metrics dd { margin:0; font-size:1.4rem; font-weight:600; }
+.page-cases .case-block { border-top:1px solid #D2DFDB; padding:.9rem 0; margin-top:.8rem; }
+.page-cases .case-track { padding:1rem; min-width:0; }
+.page-cases .case-prose { white-space:pre-wrap; }
+.page-cases .case-public-url,.page-cases p,.page-cases li,.page-cases h1,.page-cases h2,.page-cases h3,.page-cases h4 { overflow-wrap:anywhere; }
+.page-cases pre { white-space:pre-wrap; overflow-wrap:anywhere; max-width:100%; font-family:inherit; }
+.page-cases details { border:1px solid #D2DFDB; padding:1rem; margin-top:1rem; }
+.page-cases summary { cursor:pointer; color:#1F3A3D; font-weight:600; }
+.page-cases .case-table { max-width:100%; overflow-x:auto; }
+.page-cases .case-table table { width:100%; }
+.page-cases .case-table th,.page-cases .case-table td { white-space:normal; overflow-wrap:anywhere; }
+@media(max-width:700px) { .page-cases .evidence-tracks,.page-cases .iteration-comparison { grid-template-columns:minmax(0,1fr); } .page-cases .case-track { padding:.75rem; } }

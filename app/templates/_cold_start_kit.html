@@ -1,0 +1,53 @@
+{% set recruitment = request.state.recruitment | default(none) %}
+<section class="card recruitment-kit" id="cold-start-kit" data-testid="cold-start-kit" aria-labelledby="kit-title">
+  <h2 class="section-title" id="kit-title">冷启动招募工具包</h2>
+  <p class="lead-line">「冷启动」就是实验刚发布、还没有人知道的时候；这个工具包帮你找到第一批填写问卷的人。</p>
+  <p class="detail-text">以下内容是琢玉 Agent（智能体）的实验设计成果 · 由你审核、征得同意后手动招募。以下建议不代表已联系渠道、已产生曝光或收集到反馈。</p>
+  {% if recruitment and recruitment.failed_attempt %}<p class="notice notice-error" data-testid="kit-error">最近一次琢玉生成未成功，已有实验和原始成果仍保留。请在琢玉运行记录核对错误；本页不会把失败结果替换成有效工具包。</p>{% endif %}
+  {% if recruitment and recruitment.state == 'ready' %}
+  <p class="muted">第 {{ recruitment.round_number }} 轮 · 原始成果版本 {{ recruitment.source_version }}。人工修改问卷后，请核对文案与当前内容是否一致；复制及填写耗时不会修改原始 Agent 记录。</p>
+  <details data-testid="kit-audience"><summary>找谁 · 受访者定位和渠道建议</summary>
+    <p><strong>识玉与琢玉确定的目标用户：</strong>{{ recruitment.target_customer }}</p>
+    <p><strong>当前验证目标：</strong>{{ recruitment.validation_goal }}</p>
+    <ul>{% for feature in recruitment.kit.audience_features %}<li><strong>{{ feature.id }}</strong> {{ feature.description }} <span class="muted">对应 {{ feature.hypothesis_ids | join('、') }}</span></li>{% endfor %}</ul>
+    <div class="kit-channels">{% for channel in recruitment.kit.channels %}
+      <article class="agent-card"><h3>{{ recruitment.channel_labels[channel.channel_type] }}</h3>
+        <p>{{ channel.where_to_look }}</p><p><strong>为何匹配：</strong>{{ channel.why_matched }}</p>
+        <p><strong>如何接触：</strong>{{ channel.approach }}</p><ul>{% for note in channel.precautions %}<li>{{ note }}</li>{% endfor %}</ul>
+        <p class="muted">受众 {{ channel.audience_feature_ids | join('、') }} · 假设 {{ channel.hypothesis_ids | join('、') }} · 问题 {{ channel.question_ids | join('、') }}</p>
+      </article>{% endfor %}</div>
+    <p class="notice">这些是寻找方向，不是经核实存在的群或合作渠道。先核对平台规则并征得管理者同意；不批量骚扰。</p>
+  </details>
+  <details data-testid="kit-community"><summary>怎么发 · 社群招募文案</summary>
+    <p class="detail-text muted">核对下面这段文案的耗时说法，再复制到适合的群里。</p>
+    <label for="kit-duration">你实际试填后的预计耗时（分钟，可留空）</label>
+    <input id="kit-duration" type="number" min="1" max="120" step="1" inputmode="numeric" data-kit-duration aria-describedby="kit-duration-hint">
+    <p class="muted" id="kit-duration-hint">未试填时保持“时长待试填确认”，不要凭空承诺耗时。填写值只用于本页预览与复制，不作为已测量事实保存。</p>
+    {% if recruitment.public_url %}
+    <p>本轮正式公开问卷链接：<a href="{{ recruitment.public_url }}" data-testid="kit-public-link">{{ recruitment.public_url }}</a></p>
+    {% else %}<p class="notice" data-testid="kit-link-pending">实验尚未发布，{实验链接} 是占位符，不能供受访者填写。发布后重新打开本页，会自动填入该实验的公开问卷链接。</p>{% endif %}
+    <label for="kit-community-text">核对后复制到适合的社群</label>
+    <textarea id="kit-community-text" rows="5" readonly data-kit-community>{{ recruitment.community_message }}</textarea>
+    <textarea hidden data-kit-template="community">{{ recruitment.kit.community_message }}</textarea>
+    <button type="button" class="button" data-kit-copy="community" data-testid="kit-copy-community">复制招募文案</button>
+  </details>
+  <details data-testid="kit-interview"><summary>怎么聊 · 一对一访谈话术和提纲</summary>
+    <p class="notice">先说明目的、征得同意，允许拒绝或中途退出。不收集与验证目标无关的敏感信息；谈过去的经历，不诱导对方承诺购买。</p>
+    <p class="lead-line">一对一访谈的目标是听对方讲过去做过什么，不是让他答应将来会买。</p>
+    <label for="kit-private-text">礼貌私聊邀请</label><textarea id="kit-private-text" rows="4" readonly data-kit-private>{{ recruitment.private_invitation }}</textarea>
+    <textarea hidden data-kit-template="private">{{ recruitment.kit.private_invitation }}</textarea>
+    <button type="button" class="button" data-kit-copy="private" data-testid="kit-copy-private">复制私聊话术</button>
+    <ol>{% for item in recruitment.kit.interview_questions %}<li><strong>{{ item.question }}</strong><ul>{% for follow in item.follow_ups %}<li>追问：{{ follow }}</li>{% endfor %}</ul><p class="muted">对应 {{ item.hypothesis_ids | join('、') }}</p></li>{% endfor %}</ol>
+    <ul>{% for note in recruitment.kit.interview_notes %}<li>{{ note }}</li>{% endfor %}</ul>
+    <label for="kit-outline">完整访谈提纲</label><textarea id="kit-outline" rows="9" readonly data-kit-outline>{{ recruitment.interview_outline }}</textarea>
+    <textarea hidden data-kit-template="outline">{{ recruitment.interview_outline.replace('时长待试填确认', '{耗时说明}') }}</textarea>
+    <button type="button" class="button" data-kit-copy="outline" data-testid="kit-copy-outline">复制完整访谈提纲</button>
+  </details>
+  <p class="form-status" role="status" aria-live="polite" data-kit-status></p>
+  <p><a href="/projects/{{ recruitment.project_id }}/agents/zhuoyu?round_number={{ recruitment.round_number }}">核对本轮琢玉输入、原始成果和运行记录</a></p>
+  {% elif recruitment and recruitment.state == 'invalid' %}
+    <p class="notice notice-error" data-testid="kit-invalid">此实验保存的招募工具包未通过当前契约校验，未展示或复制无效内容。实验、问卷和原始记录保持可读，请核对琢玉运行记录。</p>
+  {% elif recruitment and recruitment.state == 'legacy' %}
+    <p data-testid="kit-empty">此轮历史成果没有冷启动招募工具包，实验仍可正常使用。未发布的首轮可在工作台重新运行琢玉；已发布实验保留原样，在下一轮独立设计时生成工具包。不会自动补造历史成果或追加模型调用。</p>
+  {% else %}<p data-testid="kit-empty">尚无实验工具包。先让识玉形成假设，再运行琢玉；成功后会随实验设计保存，不另增一次模型调用。</p>{% endif %}
+</section>

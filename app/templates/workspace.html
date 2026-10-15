@@ -1,0 +1,532 @@
+{#
+  项目工作台：GET /projects/{project_id}    （管理端）
+
+  A 的 main.py 传入的 context（真实字段，勿改；A 的测试断言恰好是这 5 个键）：
+    project             = {id, name, idea, target_users, skills, budget_cny,
+                           validation_goal, data_kind, created_at, status}
+    plan                = {target_customer, pain_points[], value_proposition,
+                           hypotheses[{id,statement,question_ids[]}],
+                           experiment_steps[], next_tasks[], landing, questions[]} | None
+    experiment          = {id, project_id, landing, questions, published_at,
+                           service_url, survey_url} | None
+    latest_report_meta  = {id, response_count, cutoff_response_id, created_at, stale} | None
+    running_run_id      = str | None
+
+  渲染分工：
+    - 服务端渲染首屏（项目信息、方案、草稿、分享链接、按钮可用性）——无 JS 也能读。
+    - 前端只负责三块**必须实时取数**的区域：工具运行日志、反馈统计、原始回答。
+      统计与原始回答走 A06 接口：
+        GET /api/experiments/{id}/statistics  → {experiment_id, response_count,
+                                                 cutoff_response_id, questions[]}
+        草稿返回 400 INVALID_STATE；实验不存在 404
+        GET /api/experiments/{id}/responses   → [{id, answers, created_at}]
+    - 生成方案 / 发布 成功后整页重载，不重复实现一套前端渲染，避免两套渲染结果不一致。
+    - A07 已接通（B 本轮交付）：复盘区显示报告快照与 stale 提醒，复盘按钮按状态启用；
+      复盘 POST 与报告页、Markdown 下载入口见下方 review-card 与 app.js 的 initWorkspacePage。
+#}
+{% extends "base.html" %}
+{% block title %}{{ project.name }}｜项目工作台{% endblock %}
+{% block body_class %}page-admin page-workspace{% endblock %}
+
+{# 状态词统一为四种（R1）：draft→待开始 planned→进行中 collecting→进行中 reviewed→已完成
+   描述性句子（如「报告已生成」「实验已发布」）是事实陈述，不在替换范围内。 #}
+{% set STATUS_CN = {'draft': '待开始', 'planned': '进行中', 'collecting': '进行中', 'reviewed': '已完成'} %}
+{% set KIND_CN = {'real': '真实实验', 'test': '测试样例'} %}
+{% set TYPE_CN = {'single': '单选', 'multiple': '多选', 'text': '简答'} %}
+
+{% block nav %}
+  <nav class="site-nav">
+    <span class="nav-note">个人项目空间</span>
+    <a href="/projects" data-testid="nav-projects">项目列表</a>
+    <a href="/projects/new" data-testid="nav-new-project">新建项目</a>
+  </nav>
+{% endblock %}
+
+{% block content %}
+{% set plan_locked = request.state.plan_locked | default(false) if request is defined else false %}
+<p><a href="/projects/{{ project.id }}/rounds" data-testid="round-history">实验轮次、复盘历史与下一轮迭代</a></p>
+{# 交给 app.js：实时区域需要的 ID 与题干（统计接口不返回题干，只有题号与选项） #}
+<script>
+  window.__FO_WORKSPACE__ = {
+    projectId: {{ project.id | tojson }},
+    projectStatus: {{ project.status | tojson }},
+    experimentId: {{ (experiment.id if experiment else None) | tojson }},
+    published: {{ (true if (experiment and experiment.published_at) else false) | tojson }},
+    runningRunId: {{ running_run_id | tojson }},
+    planLocked: {{ plan_locked | tojson }},
+    questions: {{ (experiment.questions if experiment else []) | tojson }}
+  };
+</script>
+
+<link rel="stylesheet" href="{{ url_for('static', path='/workbench.css') }}">
+<script src="{{ url_for('static', path='/workbench.js') }}" defer></script>
+
+{# 四阶段视图导航（B 交付合并版）
+   状态来源已统一：下面的 data-sy-state 由 history.agent_stage_states() 计算，
+   与四张角色卡（_agent_dashboard.html）读的是同一份 agent_tasks 判定。
+   之前导航从「有没有方案 / 有没有发布 / 有没有报告」推导，会和「角色是否真的跑过」
+   互相矛盾（导航说识玉已完成、卡片说待开始），现在两者不可能再各说一套。 #}
+<div class="sy-topbar">
+  <button type="button" class="sy-back" data-sy-overview hidden>← 返回总览</button>
+  <span class="sy-round" data-testid="sy-round">工作台总览</span>
+</div>
+{% set agent_stages = request.state.agent_stages | default({}) if request is defined else {} %}
+{% set agent_stage_list = request.state.agent_stage_list | default([]) if request is defined else [] %}
+<nav class="sy-stages" data-testid="sy-stages" aria-label="四阶段验证流"{% for stage in agent_stage_list %} data-sy-state-{{ stage.role }}="{{ stage.state }}"{% endfor %}></nav>
+
+{% set published = true if (experiment and experiment.published_at) else false %}
+{% set report_done = true if latest_report_meta else false %}
+{% set report_stale = true if (latest_report_meta and latest_report_meta.stale) else false %}
+{% set current_stage = 4 if (report_done and not report_stale) else (3 if published else 2) %}
+{% set collaboration = request.state.collaboration | default(none) if request is defined else none %}
+<div data-stage="overview" data-sy-state="{{ agent_stages.get('shiyu', 'pending') }}">
+{# 项目里程碑（有没有方案 / 有没有发布 / 有没有报告）与四 Agent 是否真的跑过是两件事。
+   两者不一致时，这里明确说明差异，而不是让导航和角色卡互相打脸。 #}
+{% if report_done or published %}
+{% set agent_ran = agent_stage_list | rejectattr('state', 'equalto', 'pending') | list | length %}
+{% if agent_ran == 0 %}
+<p class="notice" data-testid="sy-agent-notice">该项目已有方案或实验内容，但四个 AI 角色尚未产生执行记录——各阶段的真实执行状态以四张角色卡为准，发布与复盘不会替角色补记运行。</p>
+{% endif %}
+{% endif %}
+<p class="sy-eyebrow">工作台总览</p>
+<h1 class="sy-view-title">{{ project.name }}</h1>
+{% set current_stage_name = agent_stage_list | rejectattr('state', 'equalto', 'done') | map(attribute='name') | list | first or '攻玉' %}
+{% set current_stage_phrase = agent_stage_list | rejectattr('state', 'equalto', 'done') | map(attribute='phrase') | list | first or '攻玉 · 给下一轮建议' %}
+<section class="card sy-where" data-testid="sy-where" aria-labelledby="sy-where-title">
+  <h2 id="sy-where-title" class="section-title">我在哪</h2>
+  <div class="sy-metrics">
+    {# 只读文本，不复用/不移动别的视图里的 data-testid="project-name" #}
+    <div class="sy-metric"><span>项目</span><b data-testid="sy-where-project">{{ project.name }}</b></div>
+    <div class="sy-metric"><span>当前阶段</span><b data-testid="sy-where-stage">{{ current_stage_phrase }}</b></div>
+    {# R5：复用 main.py:218 写入的 request.state.collaboration（history.py:31 带 round_number）；
+       拿不到 round_number 就整行 hidden，不编造轮次 #}
+    <div class="sy-metric" data-sy-round-row {% if not (collaboration and collaboration.round_number) %}hidden{% endif %}>
+      <span>当前轮次</span><b data-testid="sy-where-round" data-sy-round>{% if collaboration and collaboration.round_number %}第 {{ collaboration.round_number }} 轮{% endif %}</b>
+    </div>
+  </div>
+  <div class="sy-actionbar">
+    <a class="button button-primary sy-primary" data-sy-primary data-sy-next="zhuoyu" data-sy-nav
+       href="#sy-zhuoyu" data-testid="sy-continue">继续任务</a>
+    <p class="sy-hint">前往当前阶段继续操作；具体阶段以下方四阶段导航的状态为准。</p>
+  </div>
+  {# 历史轮次时间线：默认折叠，只列当前轮次一行，明细以轮次页为准，不伪造历史数据 #}
+  <details class="sy-history" data-testid="sy-history">
+    <summary>历史轮次时间线（明细以轮次页为准）</summary>
+    <ul class="feature-list">
+      {% if collaboration and collaboration.round_number %}
+      <li>第 {{ collaboration.round_number }} 轮 · 当前轮次{% if project.status %} · 状态 {{ STATUS_CN.get(project.status, project.status) }}{% endif %}</li>
+      {% else %}
+      <li>当前轮次编号缺失：项目尚未创建实验轮次。历史轮次与复盘记录请以轮次页为准。</li>
+      {% endif %}
+    </ul>
+    <p class="detail-text muted">本页只显示当前轮次；各轮实验、报告与人工确认记录请见
+      <a href="/projects/{{ project.id }}/rounds" data-testid="sy-rounds-link">实验轮次页</a>。</p>
+  </details>
+</section>
+{% include "_agent_dashboard.html" %}
+<nav class="ws-steps" data-testid="ws-steps" aria-label="四阶段验证导航">
+  <a class="ws-step ws-step-done" href="#project-overview">
+    <span class="ws-step-num">1</span>你的想法
+  </a>
+  <a class="ws-step {{ 'ws-step-current' if current_stage == 2 else 'ws-step-done' }}" href="#validation-plan"
+     {% if current_stage == 2 %}aria-current="step"{% endif %}>
+    <span class="ws-step-num">2</span>识玉与琢玉成果
+  </a>
+  <a class="ws-step {{ 'ws-step-current' if current_stage == 3 else ('ws-step-done' if current_stage == 4 else 'ws-step-pending') }}" href="#feedback"
+     {% if current_stage == 3 %}aria-current="step"{% endif %}>
+    <span class="ws-step-num">3</span>收集真实反馈{% if report_stale %}（有新增）{% endif %}
+  </a>
+  <a class="ws-step {{ 'ws-step-stale' if report_stale else ('ws-step-done ws-step-current' if report_done else 'ws-step-pending') }}"
+     href="{{ '/projects/' ~ project.id ~ '/report' if report_done else '#review' }}"
+     {% if current_stage == 4 %}aria-current="step"{% endif %}
+        {% if report_stale %}data-testid="ws-step-report-stale"{% endif %}>
+    <span class="ws-step-num">4</span>鉴玉证据报告{% if report_stale %}（待更新）{% elif report_done %}（已完成）{% endif %}
+  </a>
+</nav>
+
+<section class="card" data-testid="ws-stage-guide" aria-labelledby="ws-stage-title">
+  <h2 id="ws-stage-title" class="step-hint">当前阶段：{{ '识玉与琢玉成果' if current_stage == 2 else ('收集真实反馈' if current_stage == 3 else '鉴玉证据报告已完成') }}</h2>
+  {% if current_stage == 2 and not experiment %}
+  <p class="lead-line">把创业想法变成一份能执行的验证计划：明确要问谁、问什么。</p>
+  <p class="detail-text">当前可查看项目信息、生成计划。<strong>下一步：</strong>点击下方「生成验证方案与草稿」，再检查 AI 给出的假设和问卷。</p>
+  {% elif current_stage == 2 %}
+  <p class="lead-line">计划和问卷草稿已生成，接下来由你检查内容。</p>
+  <p class="detail-text">请确认问题清楚、没有诱导回答。当前可查看计划、编辑和预览草稿。<strong>下一步：</strong>保存修改 → 预览服务页与问卷 → 返回这里点击「发布实验」。发布后内容将锁定。</p>
+  {% elif report_stale %}
+  <p class="lead-line">已有新反馈，旧报告仍可查看，但还没有包含新增回答。</p>
+  <p class="detail-text">当前可分享问卷、查看最新反馈和旧报告。<strong>下一步：</strong>继续邀请目标用户填写，或到<a href="#review">复盘区</a>重新生成报告。</p>
+  {% elif current_stage == 3 %}
+  <p class="lead-line">实验已发布，把问卷分享给目标用户，用真实回答检验想法。</p>
+  <p class="detail-text">当前可<a href="#feedback">打开或复制分享链接</a>、<a href="#statistics">查看反馈统计</a>。<strong>下一步：</strong>邀请目标用户填写，再到<a href="#review">复盘区</a>生成报告；没有回答也可复盘，结论会明确证据不足。</p>
+  {% else %}
+  <p class="lead-line">报告已生成，包含当前反馈的统计快照、AI 复盘和下一步建议。</p>
+  <p class="detail-text">当前可<a href="/projects/{{ project.id }}/report">查看报告</a>、下载 Markdown（纯文本格式，可直接编辑）或继续收集反馈。<strong>下一步：</strong>结合证据决定下一轮验证；新增回答后可重新复盘。</p>
+  {% endif %}
+  <p class="form-status" data-testid="ws-stage-status" role="status" aria-live="polite">{% if running_run_id %}AI 任务执行中，请等待完成后再编辑、生成或发布。你仍可查看已保存的内容。{% endif %}</p>
+</section>
+
+</div>
+
+<div data-stage="shiyu" data-sy-state="{{ agent_stages.get('shiyu', 'pending') }}">
+{# R4：本视图唯一主操作 = 进入下一阶段（导航类，只读回看时也不禁用） #}
+<div class="sy-actionbar">
+  <a class="button button-primary sy-primary" data-sy-primary data-sy-next="zhuoyu" data-sy-nav
+     href="#sy-zhuoyu" data-testid="shiyu-to-zhuoyu">进入琢玉</a>
+  <p class="sy-hint">本阶段成果只读；下一步在琢玉：设计与发布实验。</p>
+</div>
+<section class="card" id="project-actions">
+  <h1 data-testid="project-name">{{ project.name }}</h1>
+
+  <p class="muted">
+    状态 <span class="tag tag-{{ project.status }}" data-testid="project-status">{{ STATUS_CN.get(project.status, project.status) }}</span>
+    · 数据类型 <span class="tag tag-{{ project.data_kind }}" data-testid="data-kind">{{ KIND_CN.get(project.data_kind, project.data_kind) }}</span>
+    · <span class="mono" data-testid="project-id">{{ project.id }}</span>
+  </p>
+
+  {% if project.data_kind == 'test' %}
+  <p class="notice notice-warn" data-testid="test-badge">
+    本项目的回答是<strong>测试样例</strong>，不得当作真实用户反馈。
+  </p>
+  {% endif %}
+
+  {% if running_run_id %}
+  <p class="notice notice-warn" data-testid="running-badge">
+    Agent（智能体）任务执行中（<span class="mono">{{ running_run_id }}</span>），本次结束前请勿重复触发。
+  </p>
+  {% endif %}
+
+  <div class="actions" data-testid="ws-actions">
+    {% if experiment %}
+      <a class="button button-ghost" data-testid="draft-edit"
+         href="/experiments/{{ experiment.id }}/edit">{{ "查看已锁定实验" if experiment.published_at else "编辑服务页与问卷" }}</a>
+      <a class="button button-ghost" data-testid="draft-preview-service"
+         href="/experiments/{{ experiment.id }}/preview/service">预览服务页</a>
+      <a class="button button-ghost" data-testid="draft-preview-survey"
+         href="/experiments/{{ experiment.id }}/preview/survey">预览问卷</a>
+    {% endif %}
+  </div>
+
+  <p class="form-status" data-testid="ws-status" role="status" aria-live="polite"></p>
+  <div class="field-errors" data-testid="field-errors" hidden></div>
+</section>
+
+{% include "_cold_start_kit.html" %}
+
+<section class="card" id="project-overview" tabindex="-1">
+  <h2>项目信息</h2>
+  <dl class="service-meta" data-testid="project-meta">
+    <dt>想验证的想法</dt><dd>{{ project.idea }}</dd>
+    <dt>目标用户</dt><dd>{{ project.target_users }}</dd>
+    <dt>团队能力</dt><dd>{{ project.skills }}</dd>
+    <dt>预算（元）</dt><dd>{{ project.budget_cny }}</dd>
+    <dt>验证目标</dt><dd>{{ project.validation_goal }}</dd>
+    <dt>数据类型</dt><dd>{{ KIND_CN.get(project.data_kind, project.data_kind) }}</dd>
+    <dt>创建时间</dt>
+    <dd><time datetime="{{ project.created_at }}" data-utc="{{ project.created_at }}">{{ project.created_at }}</time>（北京时间）</dd>
+  </dl>
+  <p class="detail-text muted">数据类型里的 test / real 是数据用途标记：test 是测试样例，real 表示回答来自真实用户，都不代表已经有商业成交。</p>
+</section>
+
+</div>
+
+<div data-stage="zhuoyu" data-sy-state="{{ agent_stages.get('zhuoyu', 'pending') }}">
+{# R4：琢玉的主操作是状态机 —— 没方案=生成验证方案；有方案未发布=发布实验；已发布=去鉴玉看证据。
+   前两态复用既有按钮与既有 data-testid 行为（不新增任何后端调用），第三态是导航链接。 #}
+<div class="sy-actionbar">
+  {% if not experiment %}
+  <button type="button" class="button button-primary sy-primary" data-testid="plan-generate" data-sy-primary data-sy-write
+          {% if plan_locked or running_run_id or (experiment and experiment.published_at) %}disabled{% endif %}>
+    {% if experiment %}重新生成方案与草稿{% else %}生成验证方案与草稿{% endif %}
+  </button>
+  <p class="sy-hint">先生成验证方案与问卷草稿，下一步再审核并发布。</p>
+  {% elif not experiment.published_at %}
+  {# 草稿的编辑与预览入口原本只放在识玉视图的 ws-actions 里，
+     而本视图（琢玉）在 CSS 上会把其他阶段整个 display:none。
+     结果读者看着草稿却找不到「去哪里编辑、去哪里发布」。
+     这里在发布按钮旁给出同样的入口；既有 data-testid 全部保留。 #}
+  <button type="button" class="button button-seal" data-testid="experiment-publish" data-sy-primary data-sy-write
+          {% if running_run_id %}disabled{% endif %}>发布实验</button>
+  <a class="button button-ghost" data-testid="draft-edit-stage" data-sy-write
+     href="/experiments/{{ experiment.id }}/edit">编辑服务页与问卷</a>
+  <a class="button button-ghost" data-testid="draft-preview-service-stage"
+     href="/experiments/{{ experiment.id }}/preview/service" target="_blank" rel="noopener noreferrer">预览服务页</a>
+  <a class="button button-ghost" data-testid="draft-preview-survey-stage"
+     href="/experiments/{{ experiment.id }}/preview/survey" target="_blank" rel="noopener noreferrer">预览问卷</a>
+  <p class="sy-hint">草稿已生成：请先编辑、预览并确认内容，再正式发布。发布前其他人无法打开问卷。</p>
+  {% else %}
+  <a class="button button-primary sy-primary" data-sy-primary data-sy-next="jianyu" data-sy-nav
+     href="#sy-jianyu" data-testid="zhuoyu-to-jianyu">去鉴玉看证据</a>
+  <p class="sy-hint">实验已发布：本阶段内容已锁定为只读，证据与判定在鉴玉。</p>
+  {% endif %}
+</div>
+{# R1：原印章文案是自造状态词，改为中性事实陈述；class 与 data-testid 原样保留 #}
+{% if experiment and experiment.published_at %}<p class="jade-seal" data-testid="publish-seal">实验已发布</p>{% endif %}
+{% if experiment and not experiment.published_at %}
+<p class="muted" data-testid="publish-hint">
+  正式发布：审核实验后正式发布。请先保存并预览草稿，确认后再发布。AI 不会自动发布；发布前，其他人无法打开问卷。
+</p>
+{% if plan_locked %}<p class="muted">本轮来自已确认的迭代方案。请编辑并审核草稿；继续迭代需先发布、收集反馈并复盘。</p>{% endif %}
+{% endif %}
+<section class="card" id="validation-plan" tabindex="-1" data-testid="plan-card">
+  <h2>验证方案</h2>
+  {% if experiment %}
+  <p><a href="#experiment-draft">查看实验草稿与问卷题目</a>；编辑与预览入口就在下方<a href="#experiment-draft">实验草稿</a>卡片上方。</p>
+  {% endif %}
+  {% if plan %}
+  <div data-testid="plan-body">
+  <dl class="service-meta">
+    <dt>目标客户</dt><dd>{{ plan.target_customer }}</dd>
+  </dl>
+  <h3>痛点</h3>
+  <p class="detail-text muted">痛点就是用户现在被什么问题卡住、愿意为此花钱或花时间。</p>
+  <ul class="feature-list">
+    {% for item in plan.pain_points %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <h3>价值主张（一句话卖点）</h3>
+  <p class="detail-text muted">价值主张就是一句话说清：用户为什么选你，而不是选别的办法。</p>
+  <p>{{ plan.value_proposition }}</p>
+  <h3>待验证假设</h3>
+  <p class="notice">
+    下面 3 条是<strong>待验证假设</strong>，不是已证实结论；只有真实回答才能说明它们成立或不成立。
+  </p>
+  <p class="detail-text muted">「假设」就是还没被证实的猜测，例如「学生愿意为找搭子付费」；这一轮实验就是去测它。</p>
+  <ol data-testid="plan-hypotheses">
+    {% for hypothesis in plan.hypotheses %}
+    <li>{{ hypothesis.id }}　{{ hypothesis.statement }}
+      <span class="muted">（对应题号 {{ hypothesis.question_ids | join('、') }}）</span></li>
+    {% endfor %}
+  </ol>
+  <h3>执行步骤</h3>
+  <ol>{% for item in plan.experiment_steps %}<li>{{ item }}</li>{% endfor %}</ol>
+  <h3>下一步任务</h3>
+  <ul class="feature-list">{% for item in plan.next_tasks %}<li>{{ item }}</li>{% endfor %}</ul>
+  </div>
+  {% else %}
+  <p class="muted" data-testid="plan-empty">
+    还没有验证方案。点「生成验证方案与草稿」后，这里会显示目标客户、痛点、3 条待验证假设、执行步骤与下一步任务。
+  </p>
+  {% endif %}
+</section>
+
+<section class="card" id="experiment-draft" tabindex="-1" data-testid="draft-card">
+  <h2>实验草稿</h2>
+  {% if experiment %}
+  <div data-testid="draft-body">
+  <h3>{{ experiment.landing.title }}</h3>
+  <p>{{ experiment.landing.summary }}</p>
+  <ul class="feature-list">
+    {% for item in experiment.landing.features %}<li>{{ item }}</li>{% endfor %}
+  </ul>
+  <p class="notice">{{ experiment.landing.disclaimer }}</p>
+
+  <h3>问卷题目（{{ experiment.questions | length }} 题）</h3>
+  <table class="data-table" data-testid="question-list">
+    <thead>
+      <tr><th scope="col">题号</th><th scope="col">题型</th><th scope="col">题干</th>
+          <th scope="col">必答</th><th scope="col">选项数</th></tr>
+    </thead>
+    <tbody>
+      {% for question in experiment.questions %}
+      <tr data-testid="question-{{ question.id }}">
+        <td class="mono">{{ question.id }}</td>
+        <td>{{ TYPE_CN.get(question.type, question.type) }}</td>
+        <td>{{ question.title }}</td>
+        <td>{{ '是' if question.required else '否' }}</td>
+        <td>{{ question.options | length }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="muted" data-testid="published-at">
+    {% if experiment.published_at %}
+      已于（北京时间）<time datetime="{{ experiment.published_at }}" data-utc="{{ experiment.published_at }}">{{ experiment.published_at }}</time> 发布，题目与文案已锁定。
+      如需改题请到轮次页生成方案，审核确认后创建下一轮实验。
+    {% else %}
+      尚未发布：只有你可以编辑和预览，确认内容后请在上方点击「发布实验」正式发布。
+    {% endif %}
+  </p>
+  </div>
+  {% else %}
+  <p class="muted" data-testid="draft-empty">
+    还没有实验草稿。生成方案时会同时创建服务页文案与问卷草稿。
+  </p>
+  {% endif %}
+</section>
+
+<section class="card" id="feedback" tabindex="-1" data-testid="links-card">
+  <h2>分享链接</h2>
+  <p class="lead-line">发布之后才会有链接；先把页面打开检查一遍，再发给目标用户。</p>
+  {% if experiment and experiment.published_at %}
+  {# R3：分享链接与预览/复制工具默认折叠；#service-url / #survey-url 等既有 id 与 data-testid 结构不动 #}
+  <details class="sy-fold" data-testid="links-fold">
+    <summary>分享链接与预览、复制工具（展开显示链接与复制按钮）</summary>
+  <dl class="service-meta">
+    <dt id="service-url-label">服务展示页</dt>
+    <dd class="share-link">
+      <div class="share-link-row">
+        <input type="text" class="mono" id="service-url" data-testid="service-url" value="{{ experiment.service_url }}" readonly
+               aria-labelledby="service-url-label" aria-describedby="copy-service-status">
+        <a class="button button-ghost" href="{{ experiment.service_url }}" target="_blank" rel="noopener noreferrer" data-testid="open-service-url">打开</a>
+        <button type="button" class="button button-ghost" data-testid="copy-service-url" aria-label="复制服务展示页链接">复制</button>
+      </div>
+      <p class="form-status" id="copy-service-status" data-testid="copy-service-status" role="status" aria-live="polite"></p>
+    </dd>
+    <dt id="survey-url-label">公开问卷</dt>
+    <dd class="share-link">
+      <div class="share-link-row">
+        <input type="text" class="mono" id="survey-url" data-testid="survey-url" value="{{ experiment.survey_url }}" readonly
+               aria-labelledby="survey-url-label" aria-describedby="copy-survey-status">
+        <a class="button button-ghost" href="{{ experiment.survey_url }}" target="_blank" rel="noopener noreferrer" data-testid="open-survey-url">打开</a>
+        <button type="button" class="button button-ghost" data-testid="copy-survey-url" aria-label="复制公开问卷链接">复制</button>
+      </div>
+      <p class="form-status" id="copy-survey-status" data-testid="copy-survey-status" role="status" aria-live="polite"></p>
+    </dd>
+  </dl>
+  <p class="detail-text muted">先打开检查页面，再分享给目标用户。自动复制不可用时，可在链接框内手动选择并复制。</p>
+  </details>
+  {% else %}
+  <p class="muted" data-testid="links-empty">
+    还没有可分享的链接。完成人工发布后，这里会出现服务页与问卷地址。
+  </p>
+  <p class="detail-text muted">{% if experiment %}先<a href="/experiments/{{ experiment.id }}/edit">编辑并保存草稿</a>，预览确认后回到<a href="#experiment-draft">实验草稿</a>上方的「发布实验」发布。{% else %}先到<a href="#project-actions">项目操作区生成验证方案与草稿</a>，再检查、预览并发布。{% endif %}</p>
+  {% endif %}
+  <p><a href="#statistics">查看反馈统计</a> · <a href="#review">前往复盘与报告</a></p>
+</section>
+
+</div>
+
+<div data-stage="jianyu" data-sy-state="{{ agent_stages.get('jianyu', 'pending') }}">
+{# R4：本视图唯一主操作 = 进入攻玉（导航类）；「读取原始回答」为次级工具 #}
+<div class="sy-actionbar">
+  <a class="button button-primary sy-primary" data-sy-primary data-sy-next="gongyu" data-sy-nav
+     href="#sy-gongyu" data-testid="jianyu-to-gongyu">进入攻玉</a>
+  <p class="sy-hint">统计来自程序、解释来自模型；证据细节在下方折叠区与攻玉复盘里。</p>
+</div>
+<section class="card">
+  {# R3：工具运行日志默认折叠；#ws-logs / data-testid="run-log" / runs-empty 原样保留，app.js 仍可写入 #}
+  <details class="sy-fold" data-testid="logs-fold">
+    <summary>工具运行日志（展开查看每一步真实执行与失败记录）</summary>
+    <p class="lead-line">这里记录系统真实做过的每一步，失败也会如实留着。</p>
+    <p class="detail-text muted">
+      只显示数据库里真实发生的运行与工具调用；失败保留错误码，不预先渲染假成功时间线。
+    </p>
+    <div id="ws-logs" data-testid="run-log" data-rendered-by="js">
+      <p class="muted" data-testid="runs-empty">正在读取运行记录…</p>
+    </div>
+  </details>
+</section>
+
+<section class="card" id="statistics" tabindex="-1" data-testid="statistics-card">
+  <h2>反馈统计</h2>
+  {% if not experiment %}
+  <p class="muted" data-testid="statistics-pending">
+    还没有实验，无法统计。先生成验证方案与草稿。
+  </p>
+  {% elif not experiment.published_at %}
+  <p class="muted" data-testid="statistics-pending">
+    实验尚未发布。请先检查草稿并发布，收到回答后即可在这里查看统计。
+  </p>
+  {% else %}
+  <p class="muted" data-testid="statistics-status" role="status" aria-live="polite">正在读取统计…</p>
+  <p class="muted">
+    <span data-testid="response-count">有效回答份数：读取中</span>
+    · <span data-testid="cutoff-response-id"></span>
+  </p>
+  {# R3：摘要（有效回答份数 / 快照截止编号）保持可见，逐题明细默认折叠；statistics-body 结构不动 #}
+  <details class="sy-fold" data-testid="statistics-fold">
+    <summary>逐题数据明细（展开查看每题选项分布与简答原文）</summary>
+    <div data-testid="statistics-body"></div>
+  </details>
+  <p class="detail-text muted">
+    每题百分比的分母是<strong>该题有效作答份数</strong>，不是全部回答数；
+    多选题按该题有效作答份数计算，百分比总和可能超过 100%。
+    分母为 0 时显示「暂无数据」，不代表已经观察到零需求。
+  </p>
+  {% endif %}
+</section>
+
+<section class="card" data-testid="responses-card">
+  <h2>原始回答</h2>
+  {% if not experiment %}
+  <p class="muted" data-testid="responses-pending">还没有实验，没有回答可读取。</p>
+  {% else %}
+  <p class="detail-text muted">
+    按回答 ID 升序显示，只含回答编号、答案与时间；不显示提交编号，也不代表独立用户数。
+  </p>
+  <div class="actions">
+    <button type="button" class="button" data-testid="responses-load">读取原始回答</button>
+    <span class="form-status" data-testid="responses-status" role="status" aria-live="polite"></span>
+  </div>
+  {# R3：原始回答明细默认折叠；responses-body / responses-status / responses-load 原样保留 #}
+  <details class="sy-fold" data-testid="responses-fold">
+    <summary>展开原始回答明细（按回答 ID 升序，含答案与时间）</summary>
+    <div data-testid="responses-body"></div>
+  </details>
+  {% endif %}
+</section>
+
+</div>
+
+<div data-stage="gongyu" data-sy-state="{{ agent_stages.get('gongyu', 'pending') }}">
+<section class="card" id="review" tabindex="-1" data-testid="review-card">
+  <h2>复盘与报告</h2>
+  <p class="lead-line">复盘就是让 AI 把已保存的统计读一遍，给出结论、局限和下一步建议。</p>
+
+  {% if latest_report_meta %}
+  <dl class="service-meta" data-testid="report-meta">
+    <dt>最新报告</dt>
+    <dd>
+      <a href="/projects/{{ project.id }}/report" data-testid="report-content">查看报告</a>
+      <a class="button button-ghost" href="/api/projects/{{ project.id }}/report.md"
+         data-testid="report-download">下载 Markdown（纯文本，可直接编辑）</a>
+    </dd>
+    <dt>报告生成时间</dt>
+    <dd><time datetime="{{ latest_report_meta.created_at }}"
+              data-utc="{{ latest_report_meta.created_at }}">{{ latest_report_meta.created_at }}</time>（北京时间）</dd>
+    <dt>报告使用的回答</dt>
+    <dd data-testid="report-response-count">{{ latest_report_meta.response_count }} 份，
+        统计快照截止回答编号 {{ latest_report_meta.cutoff_response_id }}</dd>
+  </dl>
+
+  {% if latest_report_meta.stale %}
+  {# T09：报告之后又收到新反馈，旧报告的数字不能被当成最新结果 #}
+  <p class="notice notice-warn" data-testid="report-stale">
+    已有新反馈：这份报告只使用了前 {{ latest_report_meta.response_count }} 份回答，
+    当前反馈比它更多。可以重新生成复盘把新回答纳入；旧报告本身不会被覆盖，下载内容也仍是这份快照。
+  </p>
+  {% else %}
+  <p class="muted" data-testid="report-fresh">报告与当前反馈一致，没有更新的回答。</p>
+  {% endif %}
+
+  {% else %}
+  <p class="muted" data-testid="report-empty">
+    {% if not published %}还没有成功生成的复盘报告。请先检查并发布实验，再生成复盘。{% else %}还没有成功生成的复盘报告。可以先收集回答再生成复盘；没有回答也能生成报告，但结论会明确证据不足。{% endif %}
+    报告包含统计快照、结论、局限与下一步行动。
+  </p>
+  {% endif %}
+
+  <div class="actions">
+    {# R4：攻玉主操作 = 生成/重新生成复盘（既有 data-testid 与既有行为）；已有报告时
+       workbench.js 只把它标记成导航入口（切 data-sy-next，不新增后端调用，不重做写操作） #}
+    <button type="button" class="button button-primary" data-testid="review-generate" data-sy-primary data-sy-write
+            {% if not experiment or not experiment.published_at or running_run_id %}disabled{% endif %}>
+      {% if latest_report_meta %}重新生成复盘{% else %}生成复盘{% endif %}
+    </button>
+    {% if not latest_report_meta %}
+    <button type="button" class="button" data-testid="report-content" disabled
+            title="还没有报告">查看报告</button>
+    <button type="button" class="button" data-testid="report-download" disabled
+            title="还没有报告">下载 Markdown（纯文本，可直接编辑）</button>
+    {% endif %}
+    <span class="form-status" data-testid="review-status" role="status" aria-live="polite"></span>
+  </div>
+
+  <p class="detail-text muted" data-testid="review-hint">
+    复盘需要先<strong>发布实验</strong>。生成时会把当时的统计保存为快照：
+    之后新增的回答<strong>不会改变这份报告的数字</strong>，只会提示「已有新反馈」；
+    Markdown 下载内容与报告页显示的是同一份快照。
+  </p>
+</section>
+</div>
+{% endblock %}

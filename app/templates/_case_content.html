@@ -1,0 +1,24 @@
+{% macro items(values) %}{% if values %}<ul>{% for value in values %}<li>{{ value }}</li>{% endfor %}</ul>{% else %}<p class="muted">暂无记录</p>{% endif %}{% endmacro %}
+{% macro refs(values) %}<p class="muted">题目级证据：{% for ref in values %}{{ ref.question_id }}{% if ref.option_id %} · 选项 {{ ref.option_id }}{% endif %}{% if not loop.last %}；{% endif %}{% else %}暂无引用{% endfor %}。不展示回答编号或开放回答原文。</p>{% endmacro %}
+{% macro questions(values) %}{% for q in values %}<article class="case-block"><h4>{{ loop.index }}. {{ q.title }} <span class="tag">{{ {'single':'单选','multiple':'多选','text':'开放题'}.get(q.type,q.type) }}</span></h4><ul>{% for o in q.options | default([]) %}<li>{{ o.label }}</li>{% endfor %}</ul></article>{% else %}<p>尚未完成</p>{% endfor %}{% endmacro %}
+{% macro kit(value) %}
+{% if value %}
+<div class="case-kit"><details open><summary>找谁 · 受访者与渠道</summary>{% for feature in value.audience_features %}<p>{{ feature.description }}</p>{% endfor %}{% for channel in value.channels %}<article class="case-block"><h4>{{ channel.where_to_look }}</h4><p>匹配理由：{{ channel.why_matched }}</p><p>接触方式：{{ channel.approach }}</p>{{ items(channel.precautions) }}</article>{% endfor %}</details>
+<details open><summary>怎么发 · 已保存招募文案</summary><p class="case-prose">{{ value.community_message }}</p><p class="muted">保留原始文案占位符；真实公开链接见本轮实验。建议不代表已经招募。</p></details>
+<details open><summary>怎么聊 · 访谈提纲</summary><p>{{ value.private_invitation }}</p><ol>{% for q in value.interview_questions %}<li>{{ q.question }}{{ items(q.follow_ups) }}</li>{% endfor %}</ol>{{ items(value.interview_notes) }}</details></div>
+{% else %}<p>尚未完成或历史成果未包含招募工具包。</p>{% endif %}
+{% endmacro %}
+{% macro review(value) %}
+<p>{{ value.summary }}</p>
+{% for assessment in value.hypothesis_assessments | default([]) %}<article class="case-block"><h4>{{ assessment.hypothesis_id }} · {{ {'preliminary_support':'初步支持','not_supported':'暂不支持','insufficient_evidence':'证据不足'}.get(assessment.status,assessment.status) }}</h4><p>{{ assessment.reason }}</p>{{ refs(assessment.evidence_refs) }}</article>{% endfor %}
+<h4>证据局限</h4>{{ items(value.limitations) }}
+<h4>已保存的建议</h4>{% for action in value.next_actions | default([]) %}<p>{{ action.action }} · 完成标准：{{ action.completion_criterion }}</p>{% else %}<p>暂无记录</p>{% endfor %}
+<p class="muted">AI 分析并非确定事实；开放回答原文与可能包含原话的关键反馈列表不展示。</p>
+{% endmacro %}
+{% macro strategy(value) %}
+<p>{{ value.diagnosis }}</p><h4>下一轮目标</h4>{{ items(value.next_goals) }}<h4>约束</h4>{{ items(value.constraints) }}
+{% for change in value.suggested_changes | default([]) %}<article class="case-block"><h4>修改方向：{{ {'target_customer':'目标用户','pain_points':'问题','value_proposition':'价值主张','hypotheses':'假设','experiment_steps':'实验步骤','next_tasks':'下一步','landing':'落地页','questions':'问卷'}.get(change.field,change.field) }}</h4>
+<div class="iteration-comparison"><div class="iteration-before"><h4>原案 · 待辨</h4><pre>{{ change.before | pprint }}</pre></div><div class="iteration-after"><h4>新议 · 待试</h4><pre>{{ change.after | pprint }}</pre></div></div>
+<p>修改理由：{{ change.reason }}</p>{{ refs(change.evidence_refs) }}</article>{% endfor %}
+<h4>尚待验证</h4>{{ items(value.unverified) }}
+{% endmacro %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}审核迭代方案｜{{ project.name }}{% endblock %}
+{% block body_class %}page-admin page-iteration{% endblock %}
+{% block content %}
+<section class="card" data-testid="iteration-proposal">
+  <h1>攻玉 · 下一轮实验方案</h1>
+  <p><a href="/projects/{{ project.id }}/rounds">返回轮次历史</a></p>
+  <p>来源实验 {{ proposal.source_experiment_id }} · <a href="/projects/{{ project.id }}/report?experiment_id={{ proposal.source_experiment_id }}&amp;report_id={{ proposal.source_report_id }}">查看依据的报告快照</a></p>
+  <p><a href="/projects/{{ project.id }}/agents/gongyu">查看攻玉输入、模型记录与完整策略</a></p>
+  <p data-testid="iteration-diagnosis">{{ proposal.diagnosis }}</p>
+  <p class="notice">AI 提案需要人工核对。问卷意向不能证明实际预约或付款；本系统未采集交易与访问量。{% if project.data_kind == 'test' %} 当前为合成测试样例。{% endif %}</p>
+</section>
+{% set FIELD_CN = {'target_customer':'目标用户','pain_points':'需求问题','value_proposition':'价值主张','hypotheses':'下一轮假设','experiment_steps':'验证步骤','next_tasks':'下一步任务','landing':'服务页','questions':'问卷'} %}
+{% for change in proposal.diff %}
+<section class="card" data-testid="iteration-change">
+  <h2>{{ FIELD_CN[change.field] }}</h2><p>修改原因：{{ change.reason }}（对应来源假设 {{ change.hypothesis_ids | join('、') }}）</p>
+  <details><summary>查看修改前后</summary><h3>修改前</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ change.before | pprint }}</pre>
+  <h3>修改后</h3><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ change.after | pprint }}</pre></details>
+</section>
+{% endfor %}
+<section class="card">
+  <h2>人工决策 → 琢玉独立设计下一轮</h2>
+  {% if proposal.rejected_at %}
+  <p class="notice">你已拒绝此策略；没有创建下一轮实验。</p>
+  {% elif proposal.confirmed_at %}
+  <p data-testid="iteration-confirmed">此方案已确认，实验 {{ proposal.created_experiment_id }} 已创建。</p>
+  <a class="button" href="/experiments/{{ proposal.created_experiment_id }}/edit">查看或审核实验</a>
+  {% else %}
+  <p>确认后，琢玉将接收你批准的目标和约束，独立调用模型设计新的落地页和问卷；程序校验后创建草稿。保留前轮证据，不自动发布。</p>
+  <div class="field"><label for="approved-goals">下一轮目标（每行一项，可修改）</label><textarea id="approved-goals" rows="4">{{ proposal.next_goals | join('\n') }}</textarea></div>
+  <div class="field"><label for="approved-constraints">设计约束（每行一项，可修改）</label><textarea id="approved-constraints" rows="4">{{ proposal.constraints | join('\n') }}</textarea></div>
+  <p>人工修改将作为批准内容保存并交给琢玉；新的设计仍须审核。</p>
+  <button type="button" class="button" data-testid="iteration-reject" data-reject-url="/api/projects/{{ project.id }}/iterations/{{ proposal.id }}/reject">拒绝此策略</button>
+  <button type="button" class="button button-primary" data-testid="iteration-confirm"
+    data-confirm-url="/api/projects/{{ project.id }}/iterations/{{ proposal.id }}/confirm" {% if running_run_id %}disabled{% endif %}>批准目标并交给琢玉独立设计</button>
+  {% endif %}
+  <p class="form-status" role="status" aria-live="polite" data-testid="iteration-status"></p>
+</section>
+{% endblock %}

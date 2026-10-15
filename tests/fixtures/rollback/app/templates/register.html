@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}注册{% endblock %}
+{% block body_class %}page-auth{% endblock %}
+{% block nav %}<nav class="site-nav"><a href="/login">登录</a></nav>{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>创建你的验证空间</h1>
+  <p class="muted">你的项目、反馈和报告只对你可见。公开问卷的受访者无需账号。</p>
+  {% if not request.app.state.settings.invite_registration_enabled %}
+  <p class="status" role="status" data-testid="registration-closed">邀请注册暂未开放。已有账号可继续登录。</p>
+  {% else %}
+  <form id="auth-form" data-testid="auth-form" data-auth-action="register"
+        method="post" action="/api/auth/register">
+    <div class="field">
+      <label for="username">用户名</label>
+      <input id="username" name="username" autocomplete="username" required minlength="3" maxlength="32"
+             pattern="[A-Za-z][A-Za-z0-9_\-]*" aria-describedby="username-help">
+      <p class="muted" id="username-help">3–32 位，以英文字母开头，可含数字、下划线和连字符。</p>
+    </div>
+    <div class="field">
+      <label for="email">邮箱</label>
+      <input id="email" name="email" type="email" autocomplete="email" required maxlength="254">
+    </div>
+    <div class="field">
+      <label for="invitation">邀请码</label>
+      <input id="invitation" name="invitation" type="text" required minlength="43" maxlength="43"
+             pattern="[A-Za-z0-9_\-]{43}" autocomplete="off" aria-describedby="invitation-help">
+      <p class="muted" id="invitation-help">请输入管理员提供的完整邀请码；仅验证成功后使用。</p>
+    </div>
+    <div class="field">
+      <label for="verification-code">邮箱验证码</label>
+      <input id="verification-code" name="verification_code" type="text" required minlength="6" maxlength="6"
+             pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code">
+      <button class="button" type="button" data-testid="auth-send-code">发送验证码</button>
+      <p class="muted">验证码 10 分钟内有效；60 秒后可以重新发送。请勿分享验证码。</p>
+    </div>
+    <div class="field">
+      <label for="password">密码</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required
+             minlength="12" maxlength="128" aria-describedby="password-help">
+      <p class="muted" id="password-help">12–128 位，建议使用较长且不重复的密码。</p>
+    </div>
+    <div class="field">
+      <label for="password-confirmation">确认密码</label>
+      <input id="password-confirmation" name="password_confirmation" type="password" autocomplete="new-password"
+             required minlength="12" maxlength="128">
+    </div>
+    <p class="status" role="status" aria-live="polite" data-testid="auth-status"></p>
+    <div class="field-errors" data-testid="auth-errors" hidden></div>
+    <button class="button button-primary" type="submit" data-testid="auth-submit">注册</button>
+  </form>
+  {% endif %}
+  <p>已有账号？<a href="/login">去登录</a></p>
+</section>
+{% endblock %}

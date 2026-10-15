@@ -1,0 +1,70 @@
+{#
+  服务展示页：GET /e/{public_token}                        （公开）
+              GET /experiments/{id}/preview/service        （管理端预览）
+
+  A 的 main.py 传入的 context（真实字段，勿改）：
+    landing      = {title, summary, target_users, value_proposition, features[], disclaimer}
+    questions    = [...]            # 本页不用
+    is_preview   = bool             # 预览为 true，公开为 false
+    service_url  = str              # 预览时是 /experiments/{id}/preview/service
+    survey_url   = str              # 预览时是 /experiments/{id}/preview/survey
+    submit_url   = str | None       # 预览时为 None，用于判断是否可提交
+#}
+{% extends "base.html" %}
+{% block title %}{{ landing.title }}{% endblock %}
+{% block body_class %}page-public{% endblock %}
+
+{# 公开页不显示任何管理导航 #}
+{% block nav %}{% endblock %}
+
+{% block content %}
+{% if is_preview %}
+<div class="notice notice-preview" data-testid="preview-banner">
+  <strong>草稿预览</strong>：这是未发布草稿的预览，受访者无法提交，也不能分享。
+</div>
+{% endif %}
+
+<article class="card service-card">
+  <h1 data-testid="service-title">{{ landing.title }}</h1>
+  <p class="lead" data-testid="service-summary">{{ landing.summary }}</p>
+
+  <dl class="service-meta">
+    <dt>面向对象</dt>
+    <dd>{{ landing.target_users }}</dd>
+    <dt>价值主张</dt>
+    <dd>{{ landing.value_proposition }}</dd>
+  </dl>
+
+  {% if landing.features %}
+  <h2>能力说明</h2>
+  <ul class="feature-list" data-testid="service-features">
+    {% for feature in landing.features %}
+    <li>{{ feature }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <h2>下一步</h2>
+  {% if is_preview %}
+    <p class="muted">
+      草稿尚未发布，问卷链接暂不可用。请先在工作台完成人工发布。
+    </p>
+    <p>
+      <a class="button button-primary" href="{{ survey_url }}">查看问卷预览</a>
+    </p>
+  {% else %}
+    <p>我们正在验证这项服务是否有真实需求。填写下面这份问卷大约需要 2～3 分钟。</p>
+    <p>
+      <a class="button button-primary" data-testid="survey-cta" href="{{ survey_url }}">去填写问卷</a>
+    </p>
+  {% endif %}
+</article>
+
+<div class="card disclaimer-card">
+  <h2>说明</h2>
+  <p class="muted" data-testid="service-disclaimer">{{ landing.disclaimer }}</p>
+  <p class="muted">
+    本页仅用于展示拟提供的服务并验证需求，<strong>不代表已经成交、也不代表服务已上线</strong>。
+  </p>
+</div>
+{% endblock %}

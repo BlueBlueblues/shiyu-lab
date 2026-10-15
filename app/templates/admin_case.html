@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "_case_content.html" as content %}
+{% block title %}验证案例｜{{ case.name }}{% endblock %}
+{% block body_class %}page-cases{% endblock %}
+{% block extra_head %}<meta name="robots" content="noindex,nofollow,noarchive"><link rel="stylesheet" href="{{ url_for('static', path='/admin-cases.css') }}">{% endblock %}
+{% block content %}
+<section class="card"><a href="/admin/cases">返回验证案例</a><p class="step-hint">治玉留痕 · 管理员只读</p><h1 class="section-title">{{ case.name }}</h1>
+<p><span class="tag">{{ case.owner_label }}</span> <span class="tag">{{ '测试样例，不计入真实成果' if case.test else '标记 real（数据用途：真实实验），未经真实性认证' }}</span></p>
+<p>创建于 <time data-utc="{{ case.created_at }}">{{ case.created_at }}</time> · 第 {{ case.round_number }} 轮 · 实际入库 {{ case.responses }} 份问卷提交</p>
+<p class="notice notice-warn">仅供管理员私下核查。比赛对外展示须取得项目创建者同意，并再次检查脱敏。页面不显示身份、原始答案或内部日志；不提供业务操作。份数不代表独立人数，AI 建议不代表已执行或已验证。</p></section>
+<section class="card" data-testid="case-initial"><h2>初始创业想法</h2><p class="case-prose">{{ case.idea }}</p><h3>初始目标用户</h3><p>{{ case.target_users }}</p><h3>验证目标</h3><p>{{ case.validation_goal }}</p></section>
+{% for round in case.rounds %}
+<section class="card case-round" id="round-{{ round.number }}"><h2>第 {{ round.number }} 轮 · {{ '已发布' if round.published_at else '实验尚未发布' }}</h2>
+<p>本轮实际入库 <strong>{{ round.responses }}</strong> 份问卷提交。{% if round.published_at %}发布于 <time data-utc="{{ round.published_at }}">{{ round.published_at }}</time>{% endif %}</p>
+{% if round.public_url %}<p>本轮公开问卷：<a class="case-public-url" href="{{ round.public_url }}" rel="noreferrer noopener" target="_blank">{{ round.public_url }}</a></p>{% else %}<p class="muted">尚无本轮正式公开实验链接。</p>{% endif %}</section>
+{% for role in ['shiyu','zhuoyu'] %}
+<section class="card" data-testid="case-{{ role }}"><h2>{{ roles[role] }} · {{ '寻脉定假设' if role=='shiyu' else '切磋筑实验' }}</h2>
+{% set records = round.artifacts | selectattr('role','equalto',role) | list %}
+{% for artifact in records %}{% set data=artifact.output %}
+<p class="muted">保存成果 · 第 {{ round.number }} 轮 · 版本 {{ artifact.version }} · <time data-utc="{{ artifact.finished_at }}">{{ artifact.finished_at }}</time></p>
+{% if not data %}<p>历史成果无法解析，未补造内容。</p>
+{% elif role=='shiyu' %}<h3>目标客户</h3><p>{{ data.target_customer }}</p><h3>价值主张</h3><p>{{ data.value_proposition }}</p><h3>核心假设</h3>{% for h in data.hypotheses %}<article class="case-block"><h4>{{ h.id }} · {{ h.statement }}</h4><p>验证指标：{{ h.observable_metric }}</p><p>建议判据：{{ h.success_criterion }}</p><p>失败判据：{{ h.failure_criterion }}</p></article>{% endfor %}<h4>适用局限</h4>{{ content.items(data.applicability_limits) }}<p>{{ data.unverified_notice }}</p>
+{% else %}<h3>实验设计</h3><p>{{ data.method }} · {{ data.method_reason }}</p>{{ content.items(data.success_metrics) }}{{ content.items(data.sample_limits) }}<h3>AI 设计时的实验步骤</h3>{{ content.items(data.plan.experiment_steps) }}<h3>设计时的问卷</h3>{{ content.questions(data.plan.questions) }}<h3>冷启动招募工具包</h3>{{ content.kit(data.cold_start_kit) }}{% endif %}
+{% else %}<p>尚未完成{% if role=='shiyu' and round.number>1 %}。本轮未保存新的识玉成果；请核对前轮定位，不代表新增模型调用{% endif %}。</p>{% endfor %}
+{% if role=='zhuoyu' and round.plan %}<details><summary>查看本轮实际保存的落地页与问卷（可能经过创建者编辑）</summary><h3>{{ round.plan.landing.title }}</h3><p>{{ round.plan.landing.summary }}</p><p>{{ round.plan.landing.disclaimer }}</p>{{ content.questions(round.plan.questions) }}</details>{% endif %}
+</section>{% endfor %}
+<section class="card" data-testid="case-jianyu"><h2>鉴玉 · 观纹辨证据</h2>
+{% for report in round.reports %}
+<article class="case-block"><h3>已保存报告 · <time data-utc="{{ report.created_at }}">{{ report.created_at }}</time></h3>
+{% if report.stale %}<p class="notice notice-warn" data-testid="case-stale">当前收到 {{ report.current_count }} 份反馈，此报告仅分析其中 {{ report.response_count }} 份，建议项目创建者更新鉴玉分析。</p>{% else %}<p>此快照分析 {{ report.response_count }} 份提交。本中心不会自动更新报告。</p>{% endif %}
+<div class="evidence-tracks"><section class="evidence-measured case-track"><h3>实测 · 算学统计</h3><p>保存时样本量：{{ report.response_count }} 份，不含之后的新提交。百分比分母为各题有效作答数。</p>
+{% for q in report.statistics %}<article class="case-block"><h4>题目 {{ q.id }} · 有效作答 {{ q.answered_count }} 份</h4>{% if q.type=='text' %}<p class="muted">开放题仅展示作答数，原文和回答编号已隐藏。</p>{% else %}<div class="case-table"><table class="data-table"><thead><tr><th>选项</th><th>份数</th><th>百分比</th></tr></thead><tbody>{% for o in q.options %}<tr><td>{{ o.label }}</td><td>{{ o.count }}</td><td>{{ ('%.2f%%'|format(o.percentage)) if o.percentage is not none else '暂无数据' }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}</article>{% endfor %}</section>
+<section class="evidence-inferred case-track"><h3>推演 · 策论归因</h3>{{ content.review(report.review) }}</section></div></article>
+{% else %}<p>尚未完成。</p>{% endfor %}</section>
+<section class="card" data-testid="case-gongyu"><h2>攻玉 · 攻错启新轮</h2>
+{% for artifact in round.artifacts if artifact.role=='gongyu' %}<p class="muted">已保存策略 · 版本 {{ artifact.version }} · <time data-utc="{{ artifact.finished_at }}">{{ artifact.finished_at }}</time></p>{{ content.strategy(artifact.output) }}{% else %}{% if not round.proposals %}<p>尚未完成。</p>{% endif %}{% endfor %}
+{% for proposal in round.proposals %}{% if not (round.artifacts | selectattr('role','equalto','gongyu') | list) %}{{ content.strategy(proposal.strategy) }}{% endif %}
+<h3>人工确认及下一轮记录</h3>
+{% if proposal.confirmed_at %}<p class="jade-seal">核讫 · 准复琢</p><p>确认于 <time data-utc="{{ proposal.confirmed_at }}">{{ proposal.confirmed_at }}</time>{% if proposal.next_round %} · 已保存第 {{ proposal.next_round }} 轮实验草稿，见下方轮次{% endif %}。</p>
+{% elif proposal.rejected_at %}<p>创建者已拒绝 · <time data-utc="{{ proposal.rejected_at }}">{{ proposal.rejected_at }}</time></p>{% else %}<p>等待项目创建者决定，尚未批准。</p>{% endif %}
+{% if proposal.decision.goals %}<h4>人工批准目标</h4>{{ content.items(proposal.decision.goals) }}{% endif %}
+{% if proposal.decision.constraints %}<h4>人工批准约束</h4>{{ content.items(proposal.decision.constraints) }}{% endif %}
+{% else %}<h3>人工确认及下一轮记录</h3><p>尚未完成。</p>{% endfor %}</section>
+{% else %}<section class="card"><p>实验与 Agent（智能体）成果尚未完成。</p></section>{% endfor %}
+{% endblock %}

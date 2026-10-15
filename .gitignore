@@ -1,22 +1,36 @@
-# Python环境和缓存
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-
-# 私密配置
+# Local secrets
 .env
 .env.*
 !.env.example
-
-# 数据库和实验数据
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+# Databases, user data and runtime artifacts
 data/
-evidence/
 *.db
+*.sqlite
 *.sqlite3
-
-# 本地编辑器配置
-.vscode/
-
-# 日志
+*-wal
+*-shm
+*.bak
 *.log
+logs/
+backups/
+artifacts/
+evidence/
+*.zip
+*.tar
+*.tar.gz
+# Environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+node_modules/
+.vscode/
+.idea/
+.DS_Store

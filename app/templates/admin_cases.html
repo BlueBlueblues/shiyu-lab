@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}验证案例｜管理员只读{% endblock %}
+{% block body_class %}page-cases{% endblock %}
+{% block extra_head %}<meta name="robots" content="noindex,nofollow,noarchive"><link rel="stylesheet" href="{{ url_for('static', path='/admin-cases.css') }}">{% endblock %}
+{% block content %}
+<section class="card">
+  <p class="step-hint">治玉留痕 · 管理员只读</p><h1>验证案例</h1>
+  <p class="lead-line">这里只能看，不能改：本中心不能编辑、发布、批准或运行 Agent（智能体）。</p>
+  <p>查看已保存的创业验证过程。</p>
+  <p class="notice notice-warn">普通用户项目与管理员项目分别标注。real 是数据用途标记，不是真实性认证；提交份数不等于独立受访者人数。用于比赛对外展示前，须取得项目创建者同意并核对脱敏内容。</p>
+</section>
+{% for case in cases %}
+<article class="card case-item" data-testid="case-item">
+  <p><span class="tag">{{ case.owner_label }}</span> <span class="tag">{{ '测试样例，不计入真实成果' if case.test else '标记 real（数据用途：真实实验），未经真实性认证' }}</span></p>
+  <h2><a href="/admin/cases/{{ case.id }}">{{ case.name }}</a></h2>
+  <p class="muted">创建于 <time data-utc="{{ case.created_at }}">{{ case.created_at }}</time> · 第 {{ case.round_number }} 轮 · {{ case.stage }}</p>
+  <div class="case-agents">{% for role,name in roles.items() %}<span class="tag">{{ name }} · {{ '已有成功成果' if case.roles[role] else '尚未完成' }}</span>{% endfor %}</div>
+  <dl class="case-metrics"><div><dt>已发布实验</dt><dd>{{ case.published }}</dd></div><div><dt>实际问卷提交</dt><dd>{{ case.responses }} 份</dd></div><div><dt>已批准迭代</dt><dd>{{ case.approved }}</dd></div></dl>
+  <a class="button button-primary" href="/admin/cases/{{ case.id }}">查看案例</a>
+</article>
+{% else %}<section class="card"><p>尚无项目记录。</p></section>{% endfor %}
+{% endblock %}

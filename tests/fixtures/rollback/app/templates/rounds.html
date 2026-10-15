@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}实验轮次｜{{ project.name }}{% endblock %}
+{% block body_class %}page-admin page-rounds{% endblock %}
+{% block content %}
+<section class="card" data-testid="round-history-page">
+  <h1>{{ project.name }} · 实验轮次</h1>
+  <p><a href="/projects/{{ project.id }}">返回最新轮工作台</a></p>
+  <p class="notice">{{ evidence_boundary }}{% if project.data_kind == 'test' %} 本项目是测试样例，不能作为真实用户证据。{% endif %}</p>
+  <h2>四专家交接</h2>
+  <p>识玉：制定假设与计划 → 琢玉：创建草稿 → 人工审核发布 → 鉴玉：数据库统计及证据复盘 → 攻玉：提出下一轮修改 → 人工确认 → 琢玉：创建新一轮草稿。</p>
+  <button type="button" class="button button-primary" data-testid="iteration-generate"
+    data-iteration-url="/api/projects/{{ project.id }}/iterations" data-project-id="{{ project.id }}"
+    {% if not latest_report_meta or latest_report_meta.stale or running_run_id or not experiment.published_at %}disabled{% endif %}>生成下一轮实验方案</button>
+  <p class="form-status" role="status" aria-live="polite" data-testid="iteration-status"></p>
+  <p class="muted">先生成当前轮复盘。收到新反馈后须重新复盘，才能生成迭代方案。方案需确认后才创建草稿，发布仍需另行审核。</p>
+  {% for proposal in proposals %}
+  <p><a href="/projects/{{ project.id }}/iterations/{{ proposal.id }}" data-testid="proposal-link">{{ '已确认方案' if proposal.confirmed_at else '待审核方案' }}</a>
+    · 来源报告 {{ proposal.source_report_id }} · <time data-utc="{{ proposal.created_at }}">{{ proposal.created_at }}</time></p>
+  {% endfor %}
+</section>
+{% for round in rounds %}
+<section class="card" data-testid="round-{{ round.round_number }}">
+  <h2>第 {{ round.round_number }} 轮 · {{ {'planned':'草稿','collecting':'收反馈中','reviewed':'已复盘'}.get(round.status, round.status) }}</h2>
+  <p class="muted">实验 {{ round.id }}{% if round.parent_experiment_id %} · 来源 {{ round.parent_experiment_id }}{% endif %} · 回答 {{ round.response_count }} 份</p>
+  <p><a href="/experiments/{{ round.id }}/edit">{{ '查看已发布内容' if round.published_at else '审核并编辑草稿' }}</a>
+    · <a href="/experiments/{{ round.id }}/preview/service">服务页预览</a>
+    · <a href="/experiments/{{ round.id }}/preview/survey">问卷预览</a>
+    {% if round.proposal_id %} · <a href="/projects/{{ project.id }}/iterations/{{ round.proposal_id }}">查看生成时的改动与原因</a>{% endif %}</p>
+  {% if round.plan %}
+  <details><summary>查看本轮计划与问卷快照</summary>
+    <h3>{{ round.plan.landing.title }}</h3><p>{{ round.plan.landing.summary }}</p>
+    <ul>{% for hypothesis in round.plan.hypotheses %}<li>{{ hypothesis.id }}：{{ hypothesis.statement }}</li>{% endfor %}</ul>
+    <ol>{% for question in round.plan.questions %}<li>{{ question.title }}（{{ question.type }}）
+      {% for option in question.options %} {{ option.label }}{% endfor %}</li>{% endfor %}</ol>
+    <h3>验证步骤</h3><ol>{% for step in round.plan.experiment_steps %}<li>{{ step }}</li>{% endfor %}</ol>
+  </details>
+  {% endif %}
+  {% if round.published_at %}
+  <button type="button" class="button" data-round-review="/api/experiments/{{ round.id }}/review"
+    {% if running_run_id %}disabled{% endif %}>生成本轮复盘</button>
+  {% endif %}
+  <h3>复盘历史</h3>
+  {% for report in round.reports %}
+  <p><a href="/projects/{{ project.id }}/report?experiment_id={{ round.id }}&amp;report_id={{ report.id }}" data-testid="round-report-link">查看报告快照</a>
+    · {{ report.response_count }} 份回答 · 截止编号 {{ report.cutoff_response_id }} · <time data-utc="{{ report.created_at }}">{{ report.created_at }}</time></p>
+  {% else %}<p class="muted">尚无复盘报告。</p>{% endfor %}
+</section>
+{% else %}<p class="card">还没有实验，请到工作台生成第一轮计划。</p>{% endfor %}
+{% for comparison in comparisons %}
+<section class="card" data-testid="round-comparison">
+  <h2>第 {{ comparison.previous_round }} → {{ comparison.current_round }} 轮比较</h2>
+  <p class="muted">使用各轮最新已保存报告；仅比较完全相同的选择题。变化是百分点，不代表因果或商业成功。不同样本不可视为同一组用户。</p>
+  {% if not comparison.available %}<p>证据不足：两轮都完成复盘后才可比较。</p>
+  {% else %}
+  <p>来源报告 {{ comparison.previous_report_id }} → {{ comparison.current_report_id }}；回答份数 {{ comparison.previous_response_count }} → {{ comparison.current_response_count }}</p>
+  {% if comparison.stale %}<p class="notice notice-warn">已有新反馈尚未纳入比较；本页仍展示已保存报告的统计快照。请为相应轮次重新生成复盘。</p>{% endif %}
+  <table class="data-table"><thead><tr><th scope="col">指标</th><th scope="col">上一轮（份数/分母）</th><th scope="col">本轮（份数/分母）</th><th scope="col">变化</th></tr></thead><tbody>
+  {% for metric in comparison.metrics %}<tr><td>{{ metric.question_title }} · {{ metric.option_label }}</td>
+    <td>{{ metric.previous_count }}/{{ metric.previous_denominator }}</td><td>{{ metric.current_count }}/{{ metric.current_denominator }}</td>
+    <td>{{ metric.change_percentage_points if metric.change_percentage_points is not none else '证据不足' }}{% if metric.change_percentage_points is not none %} 个百分点{% endif %}</td></tr>
+  {% else %}<tr><td colspan="4">没有可直接比较的指标。</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="muted">不比较语义已修改的题目、简答题：{{ comparison.excluded_questions | join('、') or '无' }}</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

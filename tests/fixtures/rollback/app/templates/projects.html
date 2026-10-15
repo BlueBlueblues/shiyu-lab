@@ -1,0 +1,130 @@
+{#
+  项目列表页：GET /projects                         （管理端）
+
+  A 传入的 context（可选，传了就用，不传也work）：
+    projects = [{id, name, status, data_kind, created_at}]
+               与 GET /api/projects 的 data 完全一致
+
+  设计说明：
+    - 传了 projects 就服务端渲染首屏；没传（或为空）由 app.js 调 GET /api/projects 填充，
+      两者不会重复渲染（JS 只在表格为空时取数）。因此 A 只加路由、不传 context 也能跑。
+    - 状态与数据类型的中文映射写在本模板里，不依赖 A 提供 status_cn 过滤器。
+    - created_at 以 UTC ISO 放在 <time datetime> 上，由 app.js 转成北京时间显示（不依赖 bjtime 过滤器）。
+    - data_kind=test 必须显式标注，页面不得把测试样例当真实反馈。
+    - 【产品化】首屏是"产品门面"（产品名 + 一句话价值 + 四步故事 + 主行动按钮），
+      项目表格降为第二屏的"我进行中的验证"，避免第一眼像后台管理系统。
+      所有既有 data-testid 保持不变，C 的断言与浏览器脚本无需改动。
+#}
+{% extends "base.html" %}
+{% block title %}AI 创业验证助手{% endblock %}
+{% block body_class %}page-admin page-projects{% endblock %}
+
+{% set STATUS_CN = {'draft': '草稿', 'planned': '已出方案', 'collecting': '收反馈中', 'reviewed': '已复盘'} %}
+{% set KIND_CN = {'real': '真实实验', 'test': '测试样例'} %}
+
+{% block nav %}
+  <nav class="site-nav">
+    <span class="nav-note">个人项目空间</span>
+    <a href="/projects/new" data-testid="nav-new-project">开始验证</a>
+  </nav>
+{% endblock %}
+
+{% block content %}
+{% include "_agent_intro.html" %}
+<section class="hero" data-testid="home-hero">
+  <p class="hero-brand">试玉 · SHIYU LAB · 以试辨真，以攻成玉</p>
+  <h1 class="hero-title">AI 创业验证助手</h1>
+  <p class="hero-value">
+    说出你的创业想法，<br>
+    AI 帮你设计验证实验，<br>
+    用一张问卷收集真实反馈，<br>
+    最后给你一份能拿去做决策的验证报告。
+  </p>
+  <div class="hero-actions">
+    <a class="button button-primary button-lg" href="/projects/new"
+       data-testid="project-create-link">开始一次 AI 验证</a>
+    <a class="button button-ghost button-lg" href="#my-projects">查看我进行中的验证</a>
+  </div>
+  <p class="hero-note">
+    第一步只需要一句话：你想验证什么。数据保存在本服务 SQLite；生成与复盘会将必要的项目与反馈内容发送至模型服务。
+  </p>
+</section>
+
+<section class="story" data-testid="home-story" aria-label="验证流程">
+  <ol class="story-list">
+    <li class="story-step">
+      <span class="story-num">1</span>
+      <h2>说清你的想法</h2>
+      <p>填一句想验证的创业想法：面向谁、解决什么问题、打算怎么验证。</p>
+    </li>
+    <li class="story-step">
+      <span class="story-num">2</span>
+      <h2>AI 设计验证实验</h2>
+      <p>Agent 给出可证伪的假设、对应的问题清单，以及一份可直接发布的问卷草稿。</p>
+    </li>
+    <li class="story-step">
+      <span class="story-num">3</span>
+      <h2>收集真实反馈</h2>
+      <p>人工检查后发布，把链接发给你想验证的人，他们在手机上就能填。</p>
+    </li>
+    <li class="story-step">
+      <span class="story-num">4</span>
+      <h2>拿到决策报告</h2>
+      <p>统计与复盘都基于程序算出的真实回答，样本不足会直接写「证据不足」，不替你编结论。</p>
+    </li>
+  </ol>
+</section>
+
+<section class="card" id="my-projects" data-testid="my-projects">
+  <h2>我进行中的验证</h2>
+  <p class="muted">
+    每个项目从「草稿」走到「已复盘」：出方案 → 收反馈中 → 已复盘。
+    标注「测试样例」的是演示数据，不是真实用户反馈。
+  </p>
+
+  <p class="notice" data-testid="project-empty" hidden>
+    还没有进行中的验证。点上面的「开始一次 AI 验证」，把你的想法变成第一个实验。
+  </p>
+
+  <table class="data-table" data-testid="project-table">
+    <caption class="sr-only">项目列表</caption>
+    <thead>
+      <tr>
+        <th scope="col">项目</th>
+        <th scope="col">状态</th>
+        <th scope="col">数据类型</th>
+        <th scope="col">创建时间</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody data-testid="project-list-body">
+      {% for project in projects | default([]) %}
+      <tr data-testid="project-row-{{ project.id }}">
+        <td>{{ project.name }}</td>
+        <td>
+          <span class="tag tag-{{ project.status }}" data-testid="status-{{ project.id }}">
+            {{ STATUS_CN.get(project.status, project.status) }}
+          </span>
+        </td>
+        <td>
+          <span class="tag tag-{{ project.data_kind }}" data-testid="data-kind-{{ project.id }}">
+            {{ KIND_CN.get(project.data_kind, project.data_kind) }}
+          </span>
+        </td>
+        <td>
+          <time class="muted" datetime="{{ project.created_at }}"
+                data-utc="{{ project.created_at }}">{{ project.created_at }}</time>
+        </td>
+        <td><a href="/projects/{{ project.id }}" data-testid="project-open-{{ project.id }}">打开工作台</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if projects is defined and projects %}
+  <p class="muted" data-testid="projects-source">共 {{ projects | length }} 个项目。</p>
+  {% endif %}
+
+  <span class="form-status" data-testid="projects-status" role="status" aria-live="polite"></span>
+</section>
+{% endblock %}

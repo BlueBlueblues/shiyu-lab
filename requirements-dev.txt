@@ -1,0 +1,2 @@
+# Only isolated browser acceptance; no new production dependencies.
+playwright==1.64.0

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% set NAMES = {'shiyu':'识玉','zhuoyu':'琢玉','jianyu':'鉴玉','gongyu':'攻玉'} %}
+{% block title %}{{ NAMES[role] }}成果｜{{ project.name }}{% endblock %}
+{% block body_class %}page-admin page-agent-result{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ NAMES[role] }} Agent（智能体）· 第 {{ dashboard.round_number }} 轮</h1>
+  <p class="lead-line">这一页给你看「模型到底拿到了什么、又输出了什么」，方便你人工核对。</p>
+  <p><a href="/projects/{{ project.id }}">返回协作工作台</a> · <a href="/projects/{{ project.id }}/rounds">多轮证据与人工确认</a></p>
+  <p class="detail-text">展示可审核的输入、结构化产出及实际调用记录，不展示或虚构模型隐藏思维链。</p>
+  {% if project.data_kind == 'test' %}<p class="notice">合成测试数据（数据用途标记：test），不能作为真实市场调研成果。</p>{% endif %}
+</section>
+{% set found = namespace(value=false) %}
+{% for task in dashboard.tasks if task.role == role and task.round_number == dashboard.round_number %}
+{% set found.value=true %}
+<section class="card" data-testid="agent-task">
+  <h2>任务版本 {{ task.version }} · {{ {'running':'正在执行','succeeded':'已完成','failed':'失败'}[task.status] }}</h2>
+  <p>任务 {{ task.id }} · 输入契约 v{{ task.contract_version }} · <time data-utc="{{ task.started_at }}">{{ task.started_at }}</time> → {{ task.finished_at or '尚未结束' }}</p>
+  {% if task.error_code %}<p class="notice notice-error">{{ task.error_code }}：已有证据保留，请返回工作台手动重试。</p>{% endif %}
+  {% if task.model_call %}
+  <h3>真实模型调用</h3>
+  <p>模型：{{ task.model_call.model or '调用未成功返回模型元数据' }} · 耗时 {{ task.model_call.duration_seconds or '未知' }} 秒</p>
+  <p>{{ (task.model_call.attempts or []) | length }} 次尝试（单任务最多两次，含输出校验修复）；记录的用量：{{ task.model_call.token_usage or '供应商未返回或任务未成功' }}。</p>
+  <p class="detail-text muted">这里只记录真实的调用过程；调用失败会直接写明，不会显示成成功。</p>
+  {% endif %}
+  <h3>输入来源与版本</h3>
+  {% if task.input.context.role_config %}<p class="muted">角色提示词版本校验值 {{ task.input.context.role_config.prompt_digest }}；输出契约版本 v{{ task.input.context.role_config.contract_version }}。</p>{% endif %}
+  <p>输入摘要校验值 {{ task.input_digest }}；{% if task.input.sources %}交接成果：{{ task.input.sources | join('、') }}{% else %}用户项目输入{% endif %}</p>
+  <details><summary>核对本次保存的完整输入</summary><pre>{{ task.input | tojson(indent=2) }}</pre></details>
+  {% if task.output %}
+  <h3>关键产出</h3>
+  {% if role == 'shiyu' %}
+    <p>目标用户：{{ task.output.target_customer }} · 价值：{{ task.output.value_proposition }}</p>
+    <p class="detail-text muted">「价值」指价值主张，也就是一句话说清用户为什么选它。</p>
+    <p class="notice">{{ task.output.unverified_notice }}</p>
+    {% for h in task.output.hypotheses %}<article class="agent-card"><h4>{{ h.id }} · {{ h.statement }}</h4><p>重要性 {{ h.importance }} · 不确定性 {{ h.uncertainty }}</p><p>指标：{{ h.observable_metric }}</p><p>建议成功标准：{{ h.success_criterion }}</p><p>建议失败标准：{{ h.failure_criterion }}</p></article>{% endfor %}
+    <h4>仍需验证的信息</h4><ul>{% for item in task.output.missing_information %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% elif role == 'zhuoyu' %}
+    <p>方法：{{ task.output.method }} · {{ task.output.method_reason }}</p>
+    <p>样本与解释局限：{{ task.output.sample_limits | join('；') }}</p>
+    <h4>{{ task.output.plan.landing.title }}</h4><p>{{ task.output.plan.landing.summary }}</p>
+    {% for check in task.output.question_checks %}<p>{{ check.question_id }} → {{ check.hypothesis_ids | join('、') }}：{{ check.rationale }}；质量检查：{{ check.bias_check }}</p>{% endfor %}
+    {% if recruitment_experiment_id %}<p><a href="/experiments/{{ recruitment_experiment_id }}/recruitment">打开本轮冷启动招募工具包</a>（以实际构建实验的成果为准）</p>{% endif %}
+    <p class="detail-text muted">这里是模型产出快照；人工编辑后的实际实验以实验页为准。</p>
+  {% elif role == 'jianyu' %}
+    <p>{{ task.output.summary }}</p>
+    {% for assessment in task.output.hypothesis_assessments %}<h4>{{ assessment.hypothesis_id }} · {{ assessment.status }}</h4><p>{{ assessment.reason }}</p><p>证据引用：{{ assessment.evidence_refs | tojson }}</p>{% endfor %}
+    <p class="detail-text muted">评估状态与理由由模型给出，证据引用由程序校验；「证据不足」表示当前样本不足以支持结论。</p>
+    <p>{{ task.output.limitations | join('；') }}</p>
+  {% elif role == 'gongyu' %}
+    <p>{{ task.output.diagnosis }}</p>
+    {% for item in task.output.hypothesis_decisions %}<p>{{ item.hypothesis_id }} · {{ item.decision }}：{{ item.reason }}</p>{% endfor %}
+    <h4>建议下一轮目标</h4><ul>{% for goal in task.output.next_goals %}<li>{{ goal }}</li>{% endfor %}</ul>
+    <p class="detail-text muted">这些是待人工审核的策略，不能当作琢玉已完成的下一轮设计。</p>
+  {% endif %}
+  <details><summary>查看完整结构化产出与版本</summary><p>成果 {{ task.artifact_id }} · 摘要校验值 {{ task.output_digest }}</p><pre>{{ task.output | tojson(indent=2) }}</pre></details>
+  {% endif %}
+  <p><a href="/api/runs/{{ task.run_id }}">查看同次工作流的模型任务及程序工具记录</a></p>
+</section>
+{% endfor %}
+{% if not found.value %}<section class="card"><p>此轮没有该角色的独立运行记录，不表示已完成 AI 推理。后续轮识玉假设可沿用首轮；旧版计划不追认模型任务。</p>{% if role == 'shiyu' and dashboard.round_number > 1 %}<a href="/projects/{{ project.id }}/agents/shiyu?round_number=1">查看首轮识玉输入与成果</a>{% endif %}</section>{% endif %}
+<section class="card"><h2>下一步</h2>
+{% if role == 'shiyu' %}<a href="/projects/{{ project.id }}">回工作台运行琢玉独立实验设计</a>
+{% elif role == 'zhuoyu' %}<a href="/projects/{{ project.id }}#project-actions">查看实际草稿，人工审核后发布</a>
+{% elif role == 'jianyu' %}<a href="/projects/{{ project.id }}/report">查看统计、原始证据和分析报告</a> · <a href="/projects/{{ project.id }}/rounds">交给攻玉提出迭代策略</a>
+{% else %}<a href="/projects/{{ project.id }}/rounds">选择策略，修改、拒绝或确认</a>{% endif %}
+</section>
+{% endblock %}

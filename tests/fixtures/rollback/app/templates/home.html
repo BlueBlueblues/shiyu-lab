@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}大学生 OPC 创业实践四 Agent 系统{% endblock %}
+{% block body_class %}page-landing{% endblock %}
+
+{% block nav %}
+  {% set user = request.state.current_user %}
+  <nav class="site-nav" aria-label="首页导航">
+    <a href="#validation-steps">如何验证</a>
+    {% if not user %}
+      <a href="/login" data-testid="landing-nav-start">登录</a>
+      {% if request.app.state.settings.invite_registration_enabled %}
+      <a href="/register">注册账号</a>
+      {% else %}
+      <span class="muted" data-testid="registration-closed">邀请注册暂未开放</span>
+      {% endif %}
+    {% endif %}
+  </nav>
+{% endblock %}
+
+{% block content %}
+<section class="hero" aria-labelledby="landing-title" data-testid="landing-hero">
+  <p class="hero-brand">以试辨真，以攻成玉</p>
+  <h1 class="hero-title" id="landing-title">试玉 · SHIYU LAB</h1>
+  <p class="landing-subtitle">大学生 OPC 创业实践四 Agent 系统</p>
+  <p class="hero-value">
+    帮助创业者将一个想法，<br>
+    快速转化为一次真实用户验证。
+  </p>
+  <div class="hero-actions">
+    <a class="button button-primary button-lg" href="{{ '/projects' if request.state.current_user else '/login' }}"
+       data-testid="landing-start">开始验证</a>
+  </div>
+  <p class="hero-note">从一个想法开始，先找到值得验证的问题。</p>
+</section>
+
+{% include "_agent_intro.html" %}
+
+<section class="story" id="validation-steps" aria-label="四步验证流程"
+         data-testid="landing-steps">
+  <ol class="story-list">
+    <li class="story-step">
+      <span class="story-num" aria-hidden="true">1</span>
+      <h2>输入创业想法</h2>
+      <p>说明你的想法、目标用户和想验证的问题。</p>
+    </li>
+    <li class="story-step">
+      <span class="story-num" aria-hidden="true">2</span>
+      <h2>识玉 → 琢玉：独立推理与实验设计</h2>
+      <p>分析目标用户，设计验证实验，创建问卷草稿。</p>
+    </li>
+    <li class="story-step">
+      <span class="story-num" aria-hidden="true">3</span>
+      <h2>收集真实用户反馈</h2>
+      <p>人工检查并发布问卷，邀请目标用户填写。</p>
+    </li>
+    <li class="story-step">
+      <span class="story-num" aria-hidden="true">4</span>
+      <h2>鉴玉 → 攻玉：证据分析与迭代</h2>
+      <p>汇总反馈与统计，由AI复盘并生成可下载的验证报告。</p>
+    </li>
+  </ol>
+</section>
+
+<section class="card" aria-labelledby="landing-value-title" data-testid="landing-value">
+  <h2 id="landing-value-title">低成本验证创业想法</h2>
+  <p>先验证需求，再投入开发。用一次小实验，了解用户的问题和意愿，为下一步行动寻找依据。</p>
+  <p class="muted">AI帮助整理证据，最终决策由你做出。小样本反馈不代表市场验证成功。</p>
+</section>
+{% endblock %}

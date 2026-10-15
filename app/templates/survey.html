@@ -1,0 +1,129 @@
+{#
+  问卷页：GET /e/{public_token}/survey                     （公开）
+          GET /experiments/{id}/preview/survey             （管理端预览）
+
+  A 的 main.py 传入的 context（真实字段，勿改）：
+    landing      = {title, ...}
+    questions    = [{id, type, title, required, options:[{id,label}]}]
+    is_preview   = bool
+    service_url  = str
+    survey_url   = str
+    submit_url   = str | None
+                  公开为 {PUBLIC_BASE_URL}/api/public/e/{token}/responses
+                  预览为 None（页面禁用提交）
+
+  提交契约（总纲 §7.3 + app/schemas.py Answers）：
+    POST submit_url
+    {"client_submission_id": "<uuid>", "consent": true, "answers": {"q1":"o1","q4":["o1","o2"]}}
+    single -> 选项 ID 字符串；multiple -> 选项 ID 数组；text -> 字符串
+    可选题未作答 -> 从 answers 中省略
+#}
+{% extends "base.html" %}
+{% block title %}需求验证问卷{% endblock %}
+{% block body_class %}page-public page-survey{% endblock %}
+
+{# 公开页不显示任何管理导航 #}
+{% block nav %}{% endblock %}
+
+{% block content %}
+{% if is_preview %}
+<div class="notice notice-preview" data-testid="preview-banner">
+  <strong>草稿预览</strong>：这是未发布草稿的预览，提交按钮已禁用。
+</div>
+{% endif %}
+
+<section class="card">
+  <h1>需求验证问卷</h1>
+  <p class="lead-line">这是一份需求验证问卷：我们想知道这个想法有没有人真的需要，不是卖东西给你。</p>
+  <p class="detail-text muted">
+    本问卷用于验证「{{ landing.title }}」是否存在真实需求，大约需要 2～3 分钟。
+  </p>
+
+  <div class="notice notice-consent">
+    <p><strong>参与说明</strong></p>
+    <ul>
+      <li>本问卷由学生团队发起，用于需求验证，<strong>不是商业订单，也不涉及付费</strong>。</li>
+      <li><strong>问卷意向不等于订单或付款</strong>：即使你选了「愿意」，也只是意向，不代表你已经下单或付过钱。</li>
+      <li>不收集姓名、手机号、学号等可直接识别个人身份的信息。</li>
+      <li>参与完全自愿，可随时关闭页面放弃填写。</li>
+      <li>如需删除已提交的回答，请联系团队成员处理。</li>
+    </ul>
+  </div>
+
+  <form id="survey-form" data-testid="survey-form"
+        data-submit-url="{{ submit_url or '' }}"
+        data-is-preview="{{ 'true' if is_preview else 'false' }}"
+        {# B 追加（缺陷修复）：app.js 的 collectAnswers 依赖 data-questions，
+           原模板没有这个属性，导致真实浏览器里 answers 恒为 {}（空问卷入库/被 422 拒绝）。
+           tojson 会把单引号转义成 \u0027，因此用单引号包裹是安全的。 #}
+        data-questions='{{ questions | tojson }}'
+        novalidate>
+
+    {% for question in questions %}
+    <fieldset class="question" data-testid="question-{{ question.id }}">
+      <legend>
+        {{ loop.index }}. {{ question.title }}
+        {% if question.required %}<span class="required-mark" aria-hidden="true">*</span>{% endif %}
+      </legend>
+
+      {% if question.required %}<p class="sr-only">此题为必答题。</p>{% endif %}
+
+      {% if question.type == 'single' %}
+        {% for option in question.options %}
+        <div class="option">
+          <input type="radio" id="q-{{ question.id }}-{{ option.id }}"
+                 name="answer-{{ question.id }}" value="{{ option.id }}"
+                 data-testid="option-{{ question.id }}-{{ option.id }}"
+                 {% if is_preview %}disabled{% endif %}>
+          <label for="q-{{ question.id }}-{{ option.id }}">{{ option.label }}</label>
+        </div>
+        {% endfor %}
+
+      {% elif question.type == 'multiple' %}
+        <p class="muted">可多选。</p>
+        {% for option in question.options %}
+        <div class="option">
+          <input type="checkbox" id="q-{{ question.id }}-{{ option.id }}"
+                 name="answer-{{ question.id }}" value="{{ option.id }}"
+                 data-testid="option-{{ question.id }}-{{ option.id }}"
+                 {% if is_preview %}disabled{% endif %}>
+          <label for="q-{{ question.id }}-{{ option.id }}">{{ option.label }}</label>
+        </div>
+        {% endfor %}
+
+      {% else %}
+        <label class="sr-only" for="q-{{ question.id }}-text">请填写你的回答</label>
+        <textarea id="q-{{ question.id }}-text" rows="4" maxlength="1000"
+                  name="answer-{{ question.id }}"
+                  data-testid="text-{{ question.id }}"
+                  placeholder="请简要描述"
+                  {% if is_preview %}disabled{% endif %}></textarea>
+      {% endif %}
+    </fieldset>
+    {% endfor %}
+
+    <div class="consent-row">
+      <input type="checkbox" id="consent" data-testid="survey-consent"
+             {% if is_preview %}disabled{% endif %}>
+      <label for="consent">我自愿参与本次需求验证，并同意按上方说明保存我的回答。</label>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="button button-primary"
+              data-testid="survey-submit" {% if is_preview %}disabled{% endif %}>提交问卷</button>
+      <span class="form-status" data-testid="survey-status" role="status" aria-live="polite"></span>
+    </div>
+
+    {# B 追加（缺陷修复）：app.js 会把 422 的 error.fields 写进这个容器，
+       原模板没有它，showFieldErrors 拿到 null 直接返回 —— 字段级错误被静默丢弃。 #}
+    <div class="field-errors" data-testid="field-errors" hidden></div>
+  </form>
+
+  <div class="submission-success" data-testid="submission-success" hidden>
+    <h2>提交成功，感谢参与</h2>
+    <p>你的回答已保存，提交时间：<span data-testid="submission-time"></span></p>
+    <p class="muted">如果这是重复提交，系统不会重复记录同一次填写。</p>
+    <p class="muted">再次说明：这只代表你提交了一份问卷意向，<strong>不等于订单或付款</strong>。</p>
+  </div>
+</section>
+{% endblock %}

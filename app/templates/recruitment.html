@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}冷启动招募工具包｜琢玉 Agent（智能体）{% endblock %}
+{% block body_class %}page-admin page-recruitment{% endblock %}
+{% block content %}
+<section class="card"><h1>琢玉 Agent（智能体）· 冷启动招募工具包</h1><p><a href="/projects/{{ experiment.project_id }}">返回项目工作台</a> · <a href="/experiments/{{ experiment.id }}/edit">查看本轮实验</a></p></section>
+{% include "_cold_start_kit.html" %}
+{% endblock %}

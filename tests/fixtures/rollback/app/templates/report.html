@@ -1,0 +1,255 @@
+{#
+  报告页：GET /projects/{project_id}/report        （管理端）
+
+  A 的 main.py 传入的 context（真实字段，勿改；见 docs/a07-handoff.md「报告页面 context（待 B）」）：
+    project        = 与项目详情 API 的 project 相同（含派生 status 与 data_kind，不含 plan_json）
+    report         = 与报告 GET 的 data 相同；无成功报告为 null
+    running_run_id = 当前运行 UUID 或 null
+  report 的字段：id, created_at, response_count, cutoff_response_id,
+                statistics(§7.4), review(§7.5), stale, data_kind
+  注意：statistics 里**没有题干**（只有题号、题型、选项标签），所以页面只显示题号；
+        选项标签直接取自快照，因此证据引用能渲染成「选项『经常』」而不是 o1。
+
+  纪律：
+    - report=null 显示「尚无成功复盘报告」，绝不显示空白成功结果（a07-handoff 明确要求）；
+    - 统计数字一律来自保存的 statistics 快照，不从模型文本解析；
+    - 零分母显示「暂无数据」而不是 0%；百分比固定两位小数，与工作台 JS 口径一致；
+    - 模型与用户文本全部走 Jinja 自动转义，不使用 safe、不拼 innerHTML；
+    - 证据引用只解析成题号/选项标签/回答编号，不指向任何外部来源。
+
+  testid（与工作台同名同义，便于 C 的浏览器脚本复用；C 可据此扩展 T08/T09）：
+    report-project-name, report-data-kind, report-test-badge, report-running,
+    report-empty-card, report-empty, report-back-cta,
+    report-meta, report-created-at, report-response-count, report-cutoff-response-id,
+    report-stale, report-fresh, report-statistics, report-review, report-download
+    stat-{qid}, stat-option-{qid}-{oid}, stat-text-{qid}-{rid}, stat-empty-{qid}
+    review-summary, review-key-feedback, review-limitations, review-next-actions,
+    assessment-{h1|h2|h3}, evidence-{h1|h2|h3}
+#}
+{% extends "base.html" %}
+{% block title %}需求验证报告｜{{ project.name }}{% endblock %}
+{% block body_class %}page-admin page-report{% endblock %}
+
+{% set STATUS_CN = {'draft': '草稿', 'planned': '已出方案', 'collecting': '收反馈中', 'reviewed': '已复盘'} %}
+{% set KIND_CN = {'real': '真实实验', 'test': '测试样例'} %}
+{% set TYPE_CN = {'single': '单选', 'multiple': '多选', 'text': '简答'} %}
+{% set ASSESS_CN = {'preliminary_support': '初步支持', 'not_supported': '不支持', 'insufficient_evidence': '证据不足'} %}
+{% set ASSESS_TONE = {'preliminary_support': 'reviewed', 'not_supported': 'failed', 'insufficient_evidence': 'draft'} %}
+
+{% block nav %}
+  <nav class="site-nav">
+    <span class="nav-note">个人项目空间</span>
+    <a href="/projects" data-testid="nav-projects">项目列表</a>
+    <a href="/projects/{{ project.id }}" data-testid="report-back">返回工作台</a>
+    <a href="/projects/{{ project.id }}#statistics" data-testid="report-back-feedback">查看最新反馈</a>
+    <a href="/projects/{{ project.id }}#review" data-testid="report-back-review">前往复盘区</a>
+  </nav>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <p class="step-hint" data-testid="report-step-hint">第 4 步 / 共 4 步 · 验证报告</p>
+  <h1>鉴玉 Agent · 证据分析报告</h1>
+  <p class="muted">
+    <span data-testid="report-project-name">{{ project.name }}</span>
+    · 状态 <span class="tag tag-{{ project.status }}">{{ STATUS_CN.get(project.status, project.status) }}</span>
+    · 数据类型 <span class="tag tag-{{ project.data_kind }}" data-testid="report-data-kind">{{ KIND_CN.get(project.data_kind, project.data_kind) }}</span>
+  </p>
+
+  {% if project.data_kind == 'test' %}
+  <p class="notice notice-warn" data-testid="report-test-badge">
+    这是<strong>测试样例</strong>项目的报告，不得当作真实用户反馈，也不代表商业成交。
+  </p>
+  {% endif %}
+
+  {% if running_run_id %}
+  <p class="notice notice-warn" data-testid="report-running">
+    Agent 任务执行中（<span class="mono">{{ running_run_id }}</span>）：{% if report %}本页显示的是已保存的报告快照，不含本次运行的结果。{% else %}目前尚无已保存的复盘报告，请等待任务完成后查看结果。{% endif %}
+  </p>
+  {% endif %}
+</section>
+
+{% if not report %}
+<section class="card" data-testid="report-empty-card">
+  <h2>尚无成功复盘报告</h2>
+  <p class="muted" data-testid="report-empty">
+    这个项目还没有成功生成过复盘报告。报告只会基于程序统计的真实回答生成；
+    在没有回答时，报告的结论应当是「证据不足」，不会编造需求或成交证据。
+  </p>
+  <p class="muted">
+    {% if running_run_id %}AI 任务仍在执行，请先等待完成，再回到工作台查看结果。
+    {% elif project.status in ['draft', 'planned'] %}先回到工作台生成并检查草稿，发布实验后才能生成复盘。
+    {% else %}可先收集真实回答，再回到工作台点击「生成复盘」；零回答也可以生成证据不足报告。
+    {% endif %}
+    如果复盘失败，可在工作台的运行日志里查看原因并重试。
+  </p>
+  <div class="actions">
+    <a class="button button-primary" href="/projects/{{ project.id }}{{ '#project-actions' if project.status in ['draft', 'planned'] else '#review' }}"
+       data-testid="report-back-cta">{{ '回到工作台检查并发布实验' if project.status in ['draft', 'planned'] else '回到工作台生成复盘' }}</a>
+    <button type="button" class="button" data-testid="report-download" disabled
+            title="还没有报告">下载 Markdown</button>
+  </div>
+</section>
+{% else %}
+
+<section class="card">
+  <h2>报告概览</h2>
+  {% if report.response_count == 0 %}<p class="notice notice-warn" data-testid="report-evidence-insufficient">证据不足：零回答，不能判断需求或商业成功。</p>
+  {% elif report.response_count < 5 %}<p class="notice notice-warn" data-testid="report-evidence-insufficient">探索性小样本（不足 5 份回答），不能代表目标用户总体；5 份也不是统计充分性的保证。</p>{% endif %}
+  <dl class="service-meta" data-testid="report-meta">
+    <dt>报告生成时间</dt>
+    <dd><time datetime="{{ report.created_at }}" data-utc="{{ report.created_at }}" data-testid="report-created-at">{{ report.created_at }}</time>（北京时间）</dd>
+    <dt>报告使用的回答</dt>
+    <dd><span data-testid="report-response-count">{{ report.response_count }}</span> 份；
+        统计快照截止回答编号 <span data-testid="report-cutoff-response-id">{{ report.cutoff_response_id }}</span></dd>
+    <dt>数据用途</dt>
+    <dd>{{ KIND_CN.get(report.data_kind, report.data_kind) }}</dd>
+  </dl>
+
+  {% if report.stale %}
+  <p class="notice notice-warn" data-testid="report-stale">
+    已有新反馈：这份报告只使用了前 {{ report.response_count }} 份回答，当前反馈比它更多。
+    下面的统计与结论都停留在报告生成时的快照，<strong>不会随新回答改变</strong>，下载的 Markdown 也是同一份快照。
+    回到工作台可重新生成复盘把新回答纳入；旧报告会被保留，不会被覆盖。
+  </p>
+  {% else %}
+  <p class="muted" data-testid="report-fresh">报告与当前反馈一致，没有更新的回答。</p>
+  {% endif %}
+
+  <div class="actions">
+    <a class="button button-primary" href="{{ report_download_url | default('/api/projects/' ~ project.id ~ '/report.md', true) }}"
+       data-testid="report-download">下载 Markdown 报告</a>
+    <a class="button button-ghost" href="/projects/{{ project.id }}#review" data-testid="report-back-cta">回到工作台{% if report.stale %}更新复盘{% endif %}</a>
+  </div>
+</section>
+
+{# 选项 id → 标签 的查表：只用报告自己的统计快照，不引入外部数据 #}
+{% set labels = {} %}
+{% set report_plan = request.state.report_plan | default(none) if request is defined else none %}
+{% for question in report.statistics.questions %}
+  {% for option in question.options | default([]) %}
+    {% set _ = labels.update({question.id ~ ':' ~ option.id: option.label}) %}
+  {% endfor %}
+{% endfor %}
+
+<section class="card" data-testid="report-hypothesis-method">
+  <h2>创业假设 → 验证方法 → 反馈证据</h2>
+  {% if report_plan %}
+  <p>以下假设与题目来自生成这份报告时保存的计划快照。结论与下一轮行动见下方，AI 解释仍需人工复核。</p>
+  {% for hypothesis in report_plan.hypotheses %}
+  <div class="run">
+    <h3>{{ hypothesis.id }} · {{ hypothesis.statement }}</h3>
+    <ul>{% for question in report_plan.questions %}{% if question.id in hypothesis.question_ids %}
+      <li><a href="#stat-{{ question.id }}">{{ question.id }} · {{ question.title }}：查看保存的反馈统计</a></li>
+    {% endif %}{% endfor %}</ul>
+  </div>
+  {% endfor %}
+  {% else %}<p>历史报告缺少计划快照，不能用当前计划替代原始假设；下方仍显示原报告保存的统计与结论。</p>{% endif %}
+  <p class="muted">数据仅证明问卷自报内容，未采集访问量、独立用户数、订单、预约履约或付款。报告为测试样例时不代表真实市场反馈。</p>
+</section>
+
+<section class="card" data-testid="report-statistics">
+  <h2>统计快照</h2>
+  <p class="muted">
+    数字由程序在生成报告时计算并保存，<strong>不随之后的新回答改变</strong>。
+    每题百分比的分母是<strong>该题有效作答份数</strong>，不是全部回答数；
+    多选题按该题有效作答份数计算，百分比总和可能超过 100%；
+    分母为 0 时显示「暂无数据」，不代表已经观察到零需求。
+    题目正文见工作台的问卷题目表，此处显示题号。
+  </p>
+  <p class="muted">
+    有效回答份数：<strong>{{ report.statistics.response_count }}</strong> 份；
+    统计快照截止回答编号：{{ report.statistics.cutoff_response_id }}
+  </p>
+
+  {% for question in report.statistics.questions %}
+  <div class="run" id="stat-{{ question.id }}" data-testid="stat-{{ question.id }}">
+    <p class="run-head">
+      <span class="mono">{{ question.id }}</span>
+      <span class="tag">{{ TYPE_CN.get(question.type, question.type) }}</span>
+      有效作答 {{ question.answered_count }} 份
+    </p>
+
+    {% if question.type == 'text' %}
+      {% if question.texts %}
+      <ul class="feature-list">
+        {% for item in question.texts %}
+        <li data-testid="stat-text-{{ question.id }}-{{ item.response_id }}">回答 #{{ item.response_id }}：{{ item.text }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted" data-testid="stat-empty-{{ question.id }}">暂无数据（还没有人填写这道题）。</p>
+      {% endif %}
+    {% else %}
+      <table class="data-table">
+        <thead>
+          <tr><th scope="col">选项</th><th scope="col">计数</th><th scope="col">百分比</th></tr>
+        </thead>
+        <tbody>
+          {% for option in question.options %}
+          <tr data-testid="stat-option-{{ question.id }}-{{ option.id }}">
+            <td>{{ option.label }}</td>
+            <td>{{ option.count }}</td>
+            <td>{% if option.percentage is none %}暂无数据{% else %}{{ '%.2f' | format(option.percentage) }}%{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="muted">百分比分母为该题有效作答份数 {{ question.answered_count }} 份。</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+<section class="card" data-testid="report-review">
+  <h2>复盘结论</h2>
+  {% set review = report.review %}
+
+  <h3>结论摘要</h3>
+  <p data-testid="review-summary">{{ review.summary }}</p>
+
+  <h3>假设评估</h3>
+  <p class="muted">
+    状态由模型判断；证据引用由程序校验，必须属于本报告的快照，缺失时页面显示「无」而不是替模型补引用。
+  </p>
+  {% for item in review.hypothesis_assessments %}
+  <div class="run" data-testid="assessment-{{ item.hypothesis_id }}">
+    <p class="run-head">
+      <span class="tag tag-{{ ASSESS_TONE.get(item.status, 'draft') }}">{{ ASSESS_CN.get(item.status, item.status) }}</span>
+      <span class="mono">{{ item.hypothesis_id }}</span>
+    </p>
+    <p>{{ item.reason }}</p>
+    <p class="muted" data-testid="evidence-{{ item.hypothesis_id }}">
+      证据：{% if item.evidence_refs %}{% for ref in item.evidence_refs %}{% if not loop.first %}；{% endif %}<a href="#stat-{{ ref.question_id }}">{% if ref.option_id %}题目 {{ ref.question_id }} 的选项「{{ labels.get(ref.question_id ~ ':' ~ ref.option_id, ref.option_id) }}」{% elif ref.response_id is not none %}题目 {{ ref.question_id }} 的回答 #{{ ref.response_id }}{% else %}题目 {{ ref.question_id }}{% endif %}</a>{% endfor %}{% else %}无（当前样本不足以支撑结论）{% endif %}
+    </p>
+  </div>
+  {% endfor %}
+
+  {% if review.key_feedback %}
+  <h3>关键反馈</h3>
+  <ul class="feature-list" data-testid="review-key-feedback">
+    {% for text in review.key_feedback %}<li>{{ text }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  <h3>局限</h3>
+  <ul class="feature-list" data-testid="review-limitations">
+    {% for text in review.limitations %}<li>{{ text }}</li>{% endfor %}
+  </ul>
+
+  <h3>下一步行动</h3>
+  <ol data-testid="review-next-actions">
+    {% for item in review.next_actions %}
+    <li>{{ item.action }}
+      <span class="muted">（负责人角色：{{ item.owner_role }}；完成标准：{{ item.completion_criterion }}）</span>
+    </li>
+    {% endfor %}
+  </ol>
+
+  <p class="muted">
+    本页内容来自报告生成时保存的快照；模型输出可能不准确，语义质量仍需人工复核。
+    样本量与局限见上方「局限」，不能把意向当作成交证据。
+  </p>
+</section>
+{% endif %}
+{% endblock %}

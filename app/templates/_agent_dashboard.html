@@ -1,0 +1,36 @@
+{% set agents = request.state.agents %}
+{% set STATE = {'awaiting_build':'推理已完成，草稿尚未构建','awaiting_publish':'草稿已生成，等待发布','pending':'待开始','running':'正在执行','succeeded':'已完成','failed':'失败，可重试','awaiting_confirmation':'等待人工确认','rejected':'用户已拒绝','inherited':'沿用前轮假设，未重新调用'} %}
+<section class="card" data-testid="agent-dashboard" data-project-id="{{ project.id }}">
+  <h2 class="section-title">四 Agent（智能体）协作工作台 · 第 {{ agents.round_number }} 轮</h2>
+  <p class="lead-line">四个角色依次接力：你确认之前，任何一步都不会自动往下走。</p>
+  <p class="detail-text">识玉形成假设 → 琢玉独立设计 → 你审核发布 → 收集反馈 → 鉴玉分析证据 → 攻玉提出策略 → 你确认 → 琢玉独立设计下一轮。</p>
+  {% if not agents.tasks %}<p class="notice">尚无四 Agent 执行记录。以下为待开始的角色，不代表已调用模型或完成验证。旧项目成果仍可在下方查看。</p>{% endif %}
+  <div class="agent-grid">
+  {% for card in agents.cards %}
+    <article class="agent-card" data-agent="{{ card.role }}">
+      <h3>{{ {'shiyu': '壹 · 识玉｜寻脉定假设', 'zhuoyu': '贰 · 琢玉｜切磋筑实验', 'jianyu': '叁 · 鉴玉｜观纹辨证据', 'gongyu': '肆 · 攻玉｜攻错启新轮'}[card.role] }}</h3>
+      <p class="agent-state" role="status" data-agent-state="{{ card.role }}" data-agent-state-value="{{ card.state }}">{{ STATE[card.state] }}</p>
+      {% if card.task %}
+      <p>任务版本 {{ card.task.version }} · 本轮 {{ card.task.round_number }} · 独立模型推理</p>
+      <p>输入：{% if card.task.input.sources %}{{ card.task.input.sources | length }} 个已保存角色成果{% else %}你的项目想法与约束{% endif %}</p>
+      <p>开始：<time data-utc="{{ card.task.started_at }}">{{ card.task.started_at }}</time></p>
+      {% if card.task.error_code %}<p class="notice notice-error">{{ card.task.error_code }}；已保存成果保留，修正原因后手动重试。</p>{% endif %}
+      {% elif card.inherited %}<p>使用第 {{ card.inherited.round_number }} 轮的识玉假设，并由攻玉建议及人工确认调整验证目标。</p>
+      {% else %}<p>{{ {'shiyu':'验证什么、为什么值得验证','zhuoyu':'怎样验证：方法、服务介绍页、问卷及局限','jianyu':'统计来自程序，解释来自模型，依据可追溯','gongyu':'提出策略，等待你修改、拒绝或确认'}[card.role] }}</p>{% endif %}
+      <a class="button button-ghost" href="/projects/{{ project.id }}/agents/{{ card.role }}?round_number={{ agents.round_number }}">查看{{ card.name }}成果与输入</a>
+      {% if card.role in ['shiyu','zhuoyu'] and not published and agents.round_number == 1 %}
+      <button type="button" class="button" data-agent-run="{{ card.role }}" data-project-id="{{ project.id }}" {% if running_run_id %}disabled{% endif %}>{{ '运行识玉' if card.role == 'shiyu' else '接收识玉成果并运行琢玉' }}</button>
+      {% elif card.role == 'shiyu' and published %}<button type="button" class="button" data-agent-run="shiyu" data-project-id="{{ project.id }}" {% if running_run_id %}disabled{% endif %}>结合历史重新审视假设</button><p class="muted">仅保存新的识玉成果，不改写已发布实验；下一轮须经过攻玉策略和人工确认。</p>
+      {% elif card.role == 'jianyu' and published %}<a href="#review">基于当前证据生成复盘</a>
+      {% elif card.role == 'gongyu' %}<a href="/projects/{{ project.id }}/rounds">查看或制定下一轮策略</a>{% endif %}
+    </article>
+  {% endfor %}
+  </div>
+  <p role="status" data-testid="agent-action-status"></p>
+  {% if agents.pending_proposal and not agents.pending_proposal.rejected_at and not agents.pending_proposal.created_experiment_id %}
+  <p class="notice"><a href="/projects/{{ project.id }}/iterations/{{ agents.pending_proposal.id }}">审查攻玉策略、修改目标或拒绝，再决定是否交给琢玉</a></p>{% endif %}
+  <p><a href="/projects/{{ project.id }}/rounds">查看各轮实验、报告、人工确认及证据变化</a></p>
+  <details><summary>查看角色运行与交接历史（{{ agents.tasks | length }} 个真实任务）</summary>
+    {% for task in agents.tasks %}<p>第 {{ task.round_number }} 轮 · {{ {'shiyu':'识玉','zhuoyu':'琢玉','jianyu':'鉴玉','gongyu':'攻玉'}[task.role] }} · v{{ task.version }} · {{ STATE[task.status] }} · <a href="/projects/{{ project.id }}/agents/{{ task.role }}?round_number={{ task.round_number }}">成果和调用记录</a></p>{% else %}<p>暂无模型任务，不补造历史。</p>{% endfor %}
+  </details>
+</section>
